@@ -1,0 +1,351 @@
+// Prisma schema for Streb
+// Generated from PostgreSQL database schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  clerkUserId String @unique @map("clerk_user_id")
+  email     String
+  fullName  String?  @map("full_name")
+  
+  // Subscription
+  planType    String?  @default("free") @map("plan_type")
+  stripeCustomerId String? @map("stripe_customer_id")
+  stripeSubscriptionId String? @map("stripe_subscription_id")
+  subscriptionStatus String? @map("subscription_status")
+  subscriptionCurrentPeriodEnd DateTime? @map("subscription_current_period_end")
+  
+  // Usage tracking
+  postsUsed  Int @default(0) @map("posts_used")
+  videosUsed Int @default(0) @map("videos_used")
+  emailsUsed Int @default(0) @map("emails_used")
+  
+  // Usage limits
+  postsLimit  Int @default(5) @map("posts_limit")
+  videosLimit Int @default(3) @map("videos_limit")
+  emailsLimit Int @default(25) @map("emails_limit")
+  
+  // App details
+  appName        String? @map("app_name")
+  appDescription String? @map("app_description")
+  appUrl         String? @map("app_url")
+  targetAudience String? @map("target_audience")
+  idealCustomer  String? @map("ideal_customer")
+  
+  // Metadata
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  
+  // Relations
+  connectedAccounts ConnectedAccount[]
+  posts             Post[]
+  videos            Video[]
+  outreachCampaigns OutreachCampaign[]
+  usageStats        UsageStat[]
+  autopilotConfig   AutopilotConfig?
+  ownedTeams        TeamMember[] @relation("TeamOwner")
+  teamMemberships   TeamMember[] @relation("TeamMember")
+  clients           Client[]
+  
+  @@index([clerkUserId])
+  @@index([email])
+  @@index([planType])
+  @@map("users")
+}
+
+model ConnectedAccount {
+  id       String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  
+  platform        String
+  accountUsername String? @map("account_username")
+  
+  // OAuth tokens
+  accessToken     String? @map("access_token")
+  refreshToken    String? @map("refresh_token")
+  tokenExpiresAt  DateTime? @map("token_expires_at")
+  
+  // Metadata
+  isActive    Boolean  @default(true) @map("is_active")
+  connectedAt DateTime @default(now()) @map("connected_at")
+  lastUsedAt  DateTime? @map("last_used_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, platform])
+  @@index([userId])
+  @@index([platform])
+  @@map("connected_accounts")
+}
+
+model Post {
+  id     String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  
+  // Content
+  postType         String  @map("post_type")
+  contentText      String? @map("content_text")
+  imageUrl         String? @map("image_url")
+  videoId          String? @map("video_id") @db.Uuid
+  platformCaptions Json?   @map("platform_captions")
+  
+  // Posting info
+  platforms    String[]
+  postedAt     DateTime? @map("posted_at")
+  scheduledFor DateTime? @map("scheduled_for")
+  status       String    @default("draft")
+  
+  // Results
+  engagement Json?
+  
+  // Metadata
+  isAutopilot Boolean  @default(false) @map("is_autopilot")
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video? @relation(fields: [videoId], references: [id])
+  
+  @@index([userId])
+  @@index([status])
+  @@index([scheduledFor])
+  @@map("posts")
+}
+
+model Video {
+  id     String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  
+  // Video details
+  videoType   String  @map("video_type")
+  title       String?
+  description String?
+  
+  // Video generation
+  inputSource String? @map("input_source")
+  inputData   Json?   @map("input_data")
+  script      Json?
+  
+  // Remotion rendering
+  videoUrl     String? @map("video_url")
+  thumbnailUrl String? @map("thumbnail_url")
+  duration     Int?
+  resolution   String?
+  
+  // Status
+  status              String    @default("generating")
+  renderStartedAt     DateTime? @map("render_started_at")
+  renderCompletedAt   DateTime? @map("render_completed_at")
+  
+  // Usage
+  hasWatermark Boolean @default(false) @map("has_watermark")
+  posted       Boolean @default(false)
+  
+  // Metadata
+  isAutopilot Boolean  @default(false) @map("is_autopilot")
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  posts Post[]
+  
+  @@index([userId])
+  @@index([status])
+  @@map("videos")
+}
+
+model OutreachCampaign {
+  id     String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  
+  name          String
+  idealCustomer String? @map("ideal_customer")
+  
+  // Settings
+  maxEmailsPerDay    Int     @default(25) @map("max_emails_per_day")
+  followUpEnabled    Boolean @default(true) @map("follow_up_enabled")
+  followUpDelayDays  Int     @default(3) @map("follow_up_delay_days")
+  autoRespondEnabled Boolean @default(false) @map("auto_respond_enabled")
+  
+  // Status
+  status String @default("active")
+  
+  // Stats
+  leadsFound    Int @default(0) @map("leads_found")
+  emailsSent    Int @default(0) @map("emails_sent")
+  emailsOpened  Int @default(0) @map("emails_opened")
+  emailsReplied Int @default(0) @map("emails_replied")
+  
+  // Metadata
+  isAutopilot Boolean   @default(false) @map("is_autopilot")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  startedAt   DateTime? @map("started_at")
+  pausedAt    DateTime? @map("paused_at")
+  
+  // Relations
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  leads Lead[]
+  
+  @@index([userId])
+  @@index([status])
+  @@map("outreach_campaigns")
+}
+
+model Lead {
+  id         String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  campaignId String @map("campaign_id") @db.Uuid
+  
+  // Lead info
+  email         String
+  fullName      String? @map("full_name")
+  twitterHandle String? @map("twitter_handle")
+  linkedinUrl   String? @map("linkedin_url")
+  
+  // Context
+  recentActivity Json?   @map("recent_activity")
+  painPoints     String? @map("pain_points")
+  
+  // Email status
+  emailSent    Boolean   @default(false) @map("email_sent")
+  emailSentAt  DateTime? @map("email_sent_at")
+  emailOpened  Boolean   @default(false) @map("email_opened")
+  emailClicked Boolean   @default(false) @map("email_clicked")
+  emailReplied Boolean   @default(false) @map("email_replied")
+  
+  // Follow-up
+  followUpSent   Boolean   @default(false) @map("follow_up_sent")
+  followUpSentAt DateTime? @map("follow_up_sent_at")
+  
+  // Reply
+  replyText       String?   @map("reply_text")
+  replyReceivedAt DateTime? @map("reply_received_at")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  campaign OutreachCampaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  
+  @@index([campaignId])
+  @@index([email])
+  @@map("leads")
+}
+
+model UsageStat {
+  id     String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId String @map("user_id") @db.Uuid
+  
+  // Period
+  month String
+  
+  // Usage
+  postsUsed  Int @default(0) @map("posts_used")
+  videosUsed Int @default(0) @map("videos_used")
+  emailsUsed Int @default(0) @map("emails_used")
+  
+  // Results
+  totalEngagement  Int @default(0) @map("total_engagement")
+  totalVideoViews  Int @default(0) @map("total_video_views")
+  totalEmailOpens  Int @default(0) @map("total_email_opens")
+  totalSignups     Int @default(0) @map("total_signups")
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, month])
+  @@index([userId, month])
+  @@map("usage_stats")
+}
+
+model AutopilotConfig {
+  id     String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId String @unique @map("user_id") @db.Uuid
+  
+  // AutoPilot status
+  isActive  Boolean   @default(false) @map("is_active")
+  startedAt DateTime? @map("started_at")
+  pausedAt  DateTime? @map("paused_at")
+  
+  // Content mix
+  textPostPercentage  Int @default(65) @map("text_post_percentage")
+  imagePostPercentage Int @default(35) @map("image_post_percentage")
+  
+  // Video settings
+  videoFrequency Int      @default(3) @map("video_frequency")
+  videoTypes     String[] @map("video_types")
+  
+  // Outreach settings
+  outreachEnabled  Boolean @default(true) @map("outreach_enabled")
+  maxEmailsPerDay  Int     @default(25) @map("max_emails_per_day")
+  
+  // Platforms
+  postPlatforms  String[] @map("post_platforms")
+  videoPlatforms String[] @map("video_platforms")
+  
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
+  @@map("autopilot_config")
+}
+
+model TeamMember {
+  id            String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  teamOwnerId   String @map("team_owner_id") @db.Uuid
+  memberUserId  String @map("member_user_id") @db.Uuid
+  
+  role String @default("member")
+  
+  // Permissions
+  canCreatePosts    Boolean @default(true) @map("can_create_posts")
+  canCreateVideos   Boolean @default(true) @map("can_create_videos")
+  canManageOutreach Boolean @default(true) @map("can_manage_outreach")
+  canManageTeam     Boolean @default(false) @map("can_manage_team")
+  
+  invitedAt DateTime  @default(now()) @map("invited_at")
+  joinedAt  DateTime? @map("joined_at")
+  
+  // Relations
+  teamOwner User @relation("TeamOwner", fields: [teamOwnerId], references: [id], onDelete: Cascade)
+  member    User @relation("TeamMember", fields: [memberUserId], references: [id], onDelete: Cascade)
+  
+  @@unique([teamOwnerId, memberUserId])
+  @@index([teamOwnerId])
+  @@index([memberUserId])
+  @@map("team_members")
+}
+
+model Client {
+  id             String @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  agencyUserId   String @map("agency_user_id") @db.Uuid
+  
+  clientName  String  @map("client_name")
+  clientEmail String? @map("client_email")
+  
+  // Client's app
+  appName        String? @map("app_name")
+  appDescription String? @map("app_description")
+  appUrl         String? @map("app_url")
+  
+  // Assigned team member
+  assignedToUserId String? @map("assigned_to_user_id") @db.Uuid
+  
+  createdAt DateTime @default(now()) @map("created_at")
+  
+  // Relations
+  agency User @relation(fields: [agencyUserId], references: [id], onDelete: Cascade)
+  
+  @@index([agencyUserId])
+  @@map("clients")
+}
