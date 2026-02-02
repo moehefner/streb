@@ -9,7 +9,6 @@
  */
 
 import { prisma } from '@/lib/prisma';
-import { checkUsageLimit } from '@/lib/db-helpers';
 
 // Example: Fetch user data
 async function getUserData(userId: string) {

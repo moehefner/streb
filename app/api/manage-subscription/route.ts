@@ -26,7 +26,7 @@ export async function POST(request: Request) {
         cancelAt: subscription.cancel_at,
       });
     } else if (action === 'reactivate') {
-      const subscription = await reactivateSubscription(clerkUserId);
+      await reactivateSubscription(clerkUserId);
       
       return NextResponse.json({
         success: true,

@@ -32,7 +32,6 @@ export async function POST(req: Request) {
 
   // Get the body
   const payload = await req.text();
-  const body = JSON.parse(payload);
 
   // Get the Webhook secret
   const WEBHOOK_SECRET = process.env.CLERK_WEBHOOK_SECRET;
@@ -93,10 +92,10 @@ export async function POST(req: Request) {
  * Handle user creation
  */
 async function handleUserCreated(evt: WebhookEvent) {
-  const userData = evt.data as any; // Type assertion for webhook data
+  const userData = evt.data as Record<string, unknown>; // Type assertion for webhook data
   const { id, email_addresses, first_name, last_name } = userData;
 
-  const primaryEmail = email_addresses?.find((email: any) => email.id === userData.primary_email_address_id);
+  const primaryEmail = (email_addresses as Array<Record<string, unknown>>)?.find((email: Record<string, unknown>) => email.id === userData.primary_email_address_id);
   
   if (!primaryEmail?.email_address) {
     console.error('No primary email found for user:', id);
@@ -134,10 +133,10 @@ async function handleUserCreated(evt: WebhookEvent) {
  * Handle user updates
  */
 async function handleUserUpdated(evt: WebhookEvent) {
-  const userData = evt.data as any; // Type assertion for webhook data
+  const userData = evt.data as Record<string, unknown>; // Type assertion for webhook data
   const { id, email_addresses, first_name, last_name } = userData;
 
-  const primaryEmail = email_addresses?.find((email: any) => email.id === userData.primary_email_address_id);
+  const primaryEmail = (email_addresses as Array<Record<string, unknown>>)?.find((email: Record<string, unknown>) => email.id === userData.primary_email_address_id);
   
   if (!primaryEmail?.email_address) {
     console.error('No primary email found for user:', id);
@@ -166,7 +165,7 @@ async function handleUserUpdated(evt: WebhookEvent) {
  * Handle user deletion
  */
 async function handleUserDeleted(evt: WebhookEvent) {
-  const userData = evt.data as any; // Type assertion for webhook data
+  const userData = evt.data as Record<string, unknown>; // Type assertion for webhook data
   const { id } = userData;
 
   try {

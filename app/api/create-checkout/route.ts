@@ -14,7 +14,7 @@ import { prisma } from '@/lib/prisma';
 export async function POST(request: Request) {
   try {
     // Require authentication
-    const clerkUserId = await requireAuth();
+    await requireAuth();
     
     // Get user from database
     const user = await getCurrentUser();

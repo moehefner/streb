@@ -3,7 +3,6 @@
  */
 
 import { prisma } from './prisma';
-import { supabaseAdmin } from './supabase';
 
 /**
  * Get or create a user in the database from Clerk user data
@@ -162,7 +161,7 @@ export async function updatePlanLimits(
   userId: string,
   plan: 'free' | 'starter' | 'pro' | 'agency'
 ) {
-  const limits = {
+  const limits: Record<string, { posts: number; videos: number; emails: number }> = {
     free: { posts: 5, videos: 3, emails: 25 },
     starter: { posts: 100, videos: 25, emails: 750 },
     pro: { posts: 250, videos: 75, emails: 2000 },
