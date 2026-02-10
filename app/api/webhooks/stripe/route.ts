@@ -128,7 +128,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
 
   try {
     // Update user's subscription in database
-    const periodEnd = (subscription as Record<string, unknown>).current_period_end;
+    const periodEnd = (subscription as unknown as Record<string, unknown>).current_period_end as number | undefined;
     
     await prisma.user.update({
       where: { id: userId },
@@ -197,7 +197,7 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     const planLimits = planType ? STRIPE_PLANS[planType]?.limits : null;
 
     // Update user subscription status
-    const periodEnd = (subscription as Record<string, unknown>).current_period_end;
+    const periodEnd = (subscription as unknown as Record<string, unknown>).current_period_end as number | undefined;
     
     const updateData: Record<string, unknown> = {
       subscriptionStatus: subscription.status,

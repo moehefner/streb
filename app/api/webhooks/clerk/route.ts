@@ -92,7 +92,7 @@ export async function POST(req: Request) {
  * Handle user creation
  */
 async function handleUserCreated(evt: WebhookEvent) {
-  const userData = evt.data as Record<string, unknown>; // Type assertion for webhook data
+  const userData = evt.data as unknown as Record<string, unknown>; // Type assertion for webhook data
   const { id, email_addresses, first_name, last_name } = userData;
 
   const primaryEmail = (email_addresses as Array<Record<string, unknown>>)?.find((email: Record<string, unknown>) => email.id === userData.primary_email_address_id);
@@ -104,36 +104,34 @@ async function handleUserCreated(evt: WebhookEvent) {
 
   const fullName = [first_name, last_name].filter(Boolean).join(' ') || null;
 
-  try {
-    const user = await prisma.user.create({
-      data: {
-        clerkUserId: id as string,
-        email: primaryEmail.email_address,
-        fullName,
-        // Default plan and limits for new users
-        planType: 'free',
-        postsLimit: 5,
-        videosLimit: 3,
-        emailsLimit: 25,
-      },
-    });
+  const user = await prisma.user.upsert({
+    where: {
+      clerkUserId: id as string,
+    },
+    update: {
+      email: primaryEmail.email_address as string,
+      fullName,
+    },
+    create: {
+      clerkUserId: id as string,
+      email: primaryEmail.email_address as string,
+      fullName,
+      // Default plan and limits for new users
+      planType: 'free',
+      postsLimit: 5,
+      videosLimit: 3,
+      emailsLimit: 25,
+    },
+  });
 
-    console.log('User created in database:', user.id);
-  } catch (error) {
-    // Handle case where user already exists
-    if (error instanceof Error && error.message.includes('unique constraint')) {
-      console.log('User already exists in database:', id);
-      return;
-    }
-    throw error;
-  }
+  console.log('User upserted in database:', user.id);
 }
 
 /**
  * Handle user updates
  */
 async function handleUserUpdated(evt: WebhookEvent) {
-  const userData = evt.data as Record<string, unknown>; // Type assertion for webhook data
+  const userData = evt.data as unknown as Record<string, unknown>; // Type assertion for webhook data
   const { id, email_addresses, first_name, last_name } = userData;
 
   const primaryEmail = (email_addresses as Array<Record<string, unknown>>)?.find((email: Record<string, unknown>) => email.id === userData.primary_email_address_id);
@@ -149,7 +147,7 @@ async function handleUserUpdated(evt: WebhookEvent) {
     const user = await prisma.user.update({
       where: { clerkUserId: id as string },
       data: {
-        email: primaryEmail.email_address,
+        email: primaryEmail.email_address as string,
         fullName,
       },
     });
@@ -165,7 +163,7 @@ async function handleUserUpdated(evt: WebhookEvent) {
  * Handle user deletion
  */
 async function handleUserDeleted(evt: WebhookEvent) {
-  const userData = evt.data as Record<string, unknown>; // Type assertion for webhook data
+  const userData = evt.data as unknown as Record<string, unknown>; // Type assertion for webhook data
   const { id } = userData;
 
   try {

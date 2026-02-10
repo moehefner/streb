@@ -1,0 +1,176 @@
+{
+  "name": "Streb AutoPilot - Posting Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "autopilot/post",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/autopilot/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "=Bearer {{$env.N8N_WEBHOOK_SECRET}}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{$json.userId}}"
+            },
+            {
+              "name": "action",
+              "value": "post"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get User Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.success}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/posts/generate",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "appName",
+              "value": "={{$json.config.appName}}"
+            },
+            {
+              "name": "appDescription",
+              "value": "={{$json.config.appDescription}}"
+            },
+            {
+              "name": "targetAudience",
+              "value": "={{$json.config.targetAudience}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Generate Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/posts/publish",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "postText",
+              "value": "={{$json.postText}}"
+            },
+            {
+              "name": "imageUrl",
+              "value": "={{$json.imageUrl}}"
+            },
+            {
+              "name": "platforms",
+              "value": "={{$json.connectedPlatforms}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Publish Post",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/autopilot/activity",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "actionType",
+              "value": "post"
+            },
+            {
+              "name": "actionDescription",
+              "value": "=Posted to {{$json.platforms.join(', ')}}"
+            },
+            {
+              "name": "platforms",
+              "value": "={{$json.platforms}}"
+            },
+            {
+              "name": "result",
+              "value": "success"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Log Activity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 200]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Get User Config", "type": "main", "index": 0 }]]
+    },
+    "Get User Config": {
+      "main": [[{ "node": "Check Success", "type": "main", "index": 0 }]]
+    },
+    "Check Success": {
+      "main": [
+        [{ "node": "Generate Post", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Generate Post": {
+      "main": [[{ "node": "Publish Post", "type": "main", "index": 0 }]]
+    },
+    "Publish Post": {
+      "main": [[{ "node": "Log Activity", "type": "main", "index": 0 }]]
+    }
+  }
+}

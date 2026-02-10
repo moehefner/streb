@@ -1,0 +1,167 @@
+{
+  "name": "Streb AutoPilot - Outreach Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "autopilot/outreach",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/autopilot/webhook",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{$json.userId}}"
+            },
+            {
+              "name": "action",
+              "value": "outreach"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get User Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.success}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/outreach/search-twitter",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "keywords",
+              "value": "={{$json.config.outreachKeywords.split('\\n')[0]}}"
+            },
+            {
+              "name": "minFollowers",
+              "value": "={{$json.config.minFollowers}}"
+            },
+            {
+              "name": "maxResults",
+              "value": "={{$json.config.maxResultsPerDay}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Search Twitter",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/outreach/send",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "campaignName",
+              "value": "=AutoPilot Outreach - {{$now.format('YYYY-MM-DD')}}"
+            },
+            {
+              "name": "leads",
+              "value": "={{$json.leads}}"
+            },
+            {
+              "name": "appName",
+              "value": "={{$json.config.appName}}"
+            },
+            {
+              "name": "appDescription",
+              "value": "={{$json.config.appDescription}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Send Messages",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/autopilot/activity",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "actionType",
+              "value": "outreach"
+            },
+            {
+              "name": "actionDescription",
+              "value": "=Sent {{$json.successCount}} outreach messages on Twitter"
+            },
+            {
+              "name": "platforms",
+              "value": "['twitter']"
+            },
+            {
+              "name": "result",
+              "value": "success"
+            },
+            {
+              "name": "details",
+              "value": "={{JSON.stringify({ sent: $json.successCount, failed: $json.failureCount })}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Log Activity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 200]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Get User Config", "type": "main", "index": 0 }]]
+    },
+    "Get User Config": {
+      "main": [[{ "node": "Check Success", "type": "main", "index": 0 }]]
+    },
+    "Check Success": {
+      "main": [
+        [{ "node": "Search Twitter", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Search Twitter": {
+      "main": [[{ "node": "Send Messages", "type": "main", "index": 0 }]]
+    },
+    "Send Messages": {
+      "main": [[{ "node": "Log Activity", "type": "main", "index": 0 }]]
+    }
+  }
+}

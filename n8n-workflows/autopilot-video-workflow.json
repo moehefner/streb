@@ -1,0 +1,217 @@
+{
+  "name": "Streb AutoPilot - Video Workflow",
+  "nodes": [
+    {
+      "parameters": {
+        "path": "autopilot/video",
+        "options": {}
+      },
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/autopilot/webhook",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "userId",
+              "value": "={{$json.userId}}"
+            },
+            {
+              "name": "action",
+              "value": "video"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Get User Config",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "boolean": [
+            {
+              "value1": "={{$json.success}}",
+              "value2": true
+            }
+          ]
+        }
+      },
+      "name": "Check Success",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/videos/capture-screenshots",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{$json.config.appUrl}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Capture Screenshots",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/videos/generate-script",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "appName",
+              "value": "={{$json.config.appName}}"
+            },
+            {
+              "name": "appDescription",
+              "value": "={{$json.config.appDescription}}"
+            },
+            {
+              "name": "screenshots",
+              "value": "={{$json.screenshots}}"
+            },
+            {
+              "name": "videoType",
+              "value": "demo"
+            },
+            {
+              "name": "videoLength",
+              "value": 60
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Generate Script",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1050, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/videos/render",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "script",
+              "value": "={{$json.script}}"
+            },
+            {
+              "name": "screenshots",
+              "value": "={{$json.screenshots}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Render Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1250, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/videos/post-to-platforms",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "videoUrl",
+              "value": "={{$json.videoUrl}}"
+            },
+            {
+              "name": "platforms",
+              "value": "={{$json.connectedPlatforms}}"
+            },
+            {
+              "name": "title",
+              "value": "={{$json.config.appName}} Demo"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Post Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1450, 200]
+    },
+    {
+      "parameters": {
+        "url": "={{$env.STREB_API_URL}}/api/autopilot/activity",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "actionType",
+              "value": "video"
+            },
+            {
+              "name": "actionDescription",
+              "value": "=Created video, posted to {{$json.platforms.join(', ')}}"
+            },
+            {
+              "name": "platforms",
+              "value": "={{$json.platforms}}"
+            },
+            {
+              "name": "result",
+              "value": "success"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "name": "Log Activity",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 3,
+      "position": [1650, 200]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Get User Config", "type": "main", "index": 0 }]]
+    },
+    "Get User Config": {
+      "main": [[{ "node": "Check Success", "type": "main", "index": 0 }]]
+    },
+    "Check Success": {
+      "main": [
+        [{ "node": "Capture Screenshots", "type": "main", "index": 0 }],
+        []
+      ]
+    },
+    "Capture Screenshots": {
+      "main": [[{ "node": "Generate Script", "type": "main", "index": 0 }]]
+    },
+    "Generate Script": {
+      "main": [[{ "node": "Render Video", "type": "main", "index": 0 }]]
+    },
+    "Render Video": {
+      "main": [[{ "node": "Post Video", "type": "main", "index": 0 }]]
+    },
+    "Post Video": {
+      "main": [[{ "node": "Log Activity", "type": "main", "index": 0 }]]
+    }
+  }
+}

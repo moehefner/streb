@@ -94,7 +94,7 @@ export async function incrementUsage(
   type: 'posts' | 'videos' | 'emails',
   amount: number = 1
 ) {
-  const updateData: any = {};
+  const updateData: Record<string, { increment: number }> = {};
 
   switch (type) {
     case 'posts':

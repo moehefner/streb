@@ -1,4 +1,12 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  serverExternalPackages: [
+    '@remotion/bundler',
+    '@remotion/renderer',
+    'esbuild',
+    '@esbuild/win32-x64',
+    '@esbuild/linux-x64'
+  ]
+};
 
 export default nextConfig;
