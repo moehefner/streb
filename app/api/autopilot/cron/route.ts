@@ -44,19 +44,6 @@ function toNumber(value: number | null, fallback: number): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : fallback
 }
 
-function extractBearerToken(authorizationHeader: string | null): string | null {
-  if (!authorizationHeader) {
-    return null
-  }
-
-  const [scheme, token] = authorizationHeader.split(' ')
-  if (!scheme || !token || scheme.toLowerCase() !== 'bearer') {
-    return null
-  }
-
-  return token.trim()
-}
-
 function looksLikeUserLimitsRow(value: unknown): value is UserLimitsRow {
   if (!isRecord(value)) {
     return false
@@ -161,16 +148,48 @@ async function triggerN8nWorkflow(action: WorkflowAction, userId: string): Promi
 
 export async function GET(req: NextRequest) {
   try {
-    // 1. Verify cron secret (security)
+    console.log('[Cron] Starting AutoPilot cron job...')
+    
+    // 1. Authenticate
     const authHeader = req.headers.get('authorization')
-    const expectedSecret = process.env.CRON_SECRET
-    const bearerToken = extractBearerToken(authHeader)
+    const cronSecret = process.env.CRON_SECRET
 
-    if (!expectedSecret || bearerToken !== expectedSecret) {
-      console.error('Unauthorized cron call')
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    console.log('[Cron] Auth header present:', !!authHeader)
+    console.log('[Cron] CRON_SECRET configured:', !!cronSecret)
+
+    if (!cronSecret) {
+      console.error('[Cron] CRON_SECRET not set in environment')
+      return NextResponse.json({
+        error: 'Server configuration error',
+        details: 'CRON_SECRET not configured'
+      }, { status: 500 })
     }
 
+    if (!authHeader) {
+      console.error('[Cron] No Authorization header provided')
+      return NextResponse.json({
+        error: 'Unauthorized',
+        details: 'Missing Authorization header'
+      }, { status: 401 })
+    }
+
+    // Extract token from "Bearer <token>" format
+    const token = authHeader.startsWith('Bearer ') 
+      ? authHeader.substring(7) 
+      : authHeader
+
+    console.log('[Cron] Token extracted:', token.substring(0, 10) + '...')
+    console.log('[Cron] Expected secret:', cronSecret.substring(0, 10) + '...')
+
+    if (token !== cronSecret) {
+      console.error('[Cron] Invalid token provided')
+      return NextResponse.json({
+        error: 'Unauthorized',
+        details: 'Invalid CRON_SECRET'
+      }, { status: 401 })
+    }
+
+    console.log('[Cron] ✅ Authentication successful')
     console.log('Cron job started:', new Date().toISOString())
 
     // 2. Get all active AutoPilot configs
