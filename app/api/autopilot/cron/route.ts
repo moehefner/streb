@@ -98,50 +98,46 @@ function dueActionsForConfig(
 }
 
 async function triggerN8nWorkflow(action: WorkflowAction, userId: string): Promise<TriggerResult> {
+  const n8nUrl = process.env.N8N_WEBHOOK_URL
+  const n8nSecret = process.env.N8N_WEBHOOK_SECRET
+
+  if (!n8nUrl) {
+    console.error('N8N_WEBHOOK_URL not configured')
+    return { success: false, error: 'N8N URL not configured' }
+  }
+
+  if (!n8nSecret) {
+    console.error('N8N_WEBHOOK_SECRET not configured')
+    return { success: false, error: 'N8N webhook secret not configured' }
+  }
+
+  const baseUrl = n8nUrl.replace(/\/+$/, '')
+  const webhookUrl = `${baseUrl}/webhook/autopilot/${action}?userId=${encodeURIComponent(userId)}`
+
+  console.log(`[Cron] Triggering n8n workflow: ${action} for user ${userId}`)
+
   try {
-    const n8nUrl = process.env.N8N_WEBHOOK_URL
-    const n8nSecret = process.env.N8N_WEBHOOK_SECRET
-
-    if (!n8nUrl) {
-      console.error('N8N_WEBHOOK_URL not configured')
-      return { success: false, error: 'N8N URL not configured' }
-    }
-
-    if (!n8nSecret) {
-      console.error('N8N_WEBHOOK_SECRET not configured')
-      return { success: false, error: 'N8N webhook secret not configured' }
-    }
-
-    const baseUrl = n8nUrl.replace(/\/+$/, '')
-
-    // Trigger n8n webhook
-    const response = await fetch(`${baseUrl}/webhook/autopilot/${action}`, {
-      method: 'POST',
+    const response = await fetch(webhookUrl, {
+      method: 'GET',
       headers: {
-        'Content-Type': 'application/json',
         Authorization: `Bearer ${n8nSecret}`
-      },
-      body: JSON.stringify({
-        userId,
-        action,
-        timestamp: new Date().toISOString()
-      })
+      }
     })
-
-    if (!response.ok) {
-      const errorText = await response.text().catch(() => 'n8n workflow failed')
-      console.error(`n8n workflow failed for ${action}:`, errorText)
-      return { success: false, error: errorText || 'n8n workflow failed', status: response.status }
-    }
 
     const contentType = response.headers.get('content-type') || ''
     const data = contentType.includes('application/json')
       ? await response.json().catch(() => null)
       : await response.text().catch(() => null)
 
-    return { success: true, status: response.status, data }
+    console.log(`[Cron] n8n response for ${action}:`, data)
+
+    return {
+      success: response.ok,
+      status: response.status,
+      data
+    }
   } catch (error) {
-    console.error(`Failed to trigger n8n workflow for ${action}:`, error)
+    console.error(`[Cron] Failed to trigger ${action}:`, error)
     return { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
   }
 }

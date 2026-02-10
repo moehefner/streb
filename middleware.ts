@@ -7,6 +7,7 @@ const isPublicRoute = createRouteMatcher([
   '/sign-in(.*)',
   '/sign-up(.*)',
   '/api/health',
+  '/api/autopilot/cron',
   '/api/webhooks(.*)', // Webhooks should be public for external services
 ]);
 
