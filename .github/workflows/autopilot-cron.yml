@@ -1,0 +1,35 @@
+name: AutoPilot Cron
+
+on:
+  schedule:
+    # Run every hour at minute 0
+    # Format: minute hour day month day-of-week
+    # "0 * * * *" = Every hour at :00
+    - cron: '0 * * * *'
+  
+  # Allow manual triggering from GitHub Actions tab
+  workflow_dispatch:
+
+jobs:
+  trigger-autopilot:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Trigger AutoPilot Cron
+        run: |
+          response=$(curl -s -w "\n%{http_code}" -X GET \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.STREB_API_URL }}/api/autopilot/cron")
+          
+          http_code=$(echo "$response" | tail -n1)
+          body=$(echo "$response" | sed '$d')
+          
+          echo "HTTP Status: $http_code"
+          echo "Response: $body"
+          
+          if [ "$http_code" != "200" ]; then
+            echo "Error: AutoPilot cron failed with status $http_code"
+            exit 1
+          fi
+          
+          echo "✅ AutoPilot cron completed successfully"
