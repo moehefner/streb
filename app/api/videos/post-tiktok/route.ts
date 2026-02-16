@@ -251,8 +251,16 @@ export async function POST(req: NextRequest) {
       : `https://www.tiktok.com/@${accountData.account_username}`
 
     // Update last_used_at for the connected account
-    await (supabaseAdmin
-      .from('connected_accounts') as any)
+    // NOTE: `lib/database.types.ts` is currently a placeholder, so the typed client can infer
+    // `never` for some table operations. Cast to a minimal safe shape.
+    type EqChain = { eq: (column: string, value: unknown) => EqChain }
+    const connectedAccounts = (supabaseAdmin as unknown as {
+      from: (table: string) => {
+        update: (values: Record<string, unknown>) => EqChain
+      }
+    }).from('connected_accounts')
+
+    await connectedAccounts
       .update({ last_used_at: new Date().toISOString() })
       .eq('user_id', userData.id)
       .eq('platform', 'tiktok')

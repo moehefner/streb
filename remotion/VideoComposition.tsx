@@ -1,5 +1,5 @@
 import React from 'react';
-import { AbsoluteFill, Sequence, Audio, staticFile } from 'remotion';
+import { AbsoluteFill, Sequence, Audio } from 'remotion';
 import { Scene, SceneData } from './Scene';
 
 // Types for video script
@@ -33,12 +33,6 @@ export const VideoComposition: React.FC<VideoProps> = ({
 }) => {
   const fps = 30;
   let currentFrame = 0;
-
-  // Calculate total frames from scenes
-  const totalFrames = script.scenes.reduce(
-    (total, scene) => total + Math.floor(scene.duration * fps),
-    0
-  );
 
   // Get screenshot URL for a scene
   const getScreenshotUrl = (screenshotIndex: number | null): string | undefined => {

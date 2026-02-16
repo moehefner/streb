@@ -1,8 +1,7 @@
 "use client"
 
-import { ArrowUpRight, ArrowRight, CreditCard } from "lucide-react"
+import { ArrowUpRight, ArrowRight } from "lucide-react"
 import { useEffect, useState } from "react"
-import { AnimatedText } from "./animated-text"
 
 function useCountUp(end: number, duration = 2000, suffix = "") {
   const [count, setCount] = useState(0)

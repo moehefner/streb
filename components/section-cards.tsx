@@ -1,9 +1,8 @@
-import { TrendingDown, TrendingUp } from "lucide-react"
+import { TrendingUp } from "lucide-react"
 
 import { Badge } from '@/components/ui/badge'
 import {
   Card,
-  CardContent,
   CardDescription,
   CardFooter,
   CardHeader,

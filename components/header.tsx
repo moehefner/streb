@@ -32,7 +32,7 @@ export function Header() {
       const newIsScrolled = scrollY > 20
       
       // #region agent log
-      fetch('http://127.0.0.1:7244/ingest/473a7591-1494-493f-ac42-170a2a3326a1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'header.tsx:14',message:'scroll event',data:{scrollY,newIsScrolled,prevIsScrolled:isScrolled},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'A'})}).catch(()=>{});
+      fetch('http://127.0.0.1:7244/ingest/473a7591-1494-493f-ac42-170a2a3326a1',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'header.tsx:14',message:'scroll event',data:{scrollY,newIsScrolled},timestamp:Date.now(),sessionId:'debug-session',runId:'initial',hypothesisId:'A'})}).catch(()=>{});
       // #endregion
       
       setIsScrolled(newIsScrolled)
@@ -197,7 +197,7 @@ export function Header() {
                       </Link>
                     </DropdownMenuItem>
                     <DropdownMenuItem asChild>
-                      <Link href="/dashboard/settings" className="text-white focus:text-white focus:bg-zinc-900 cursor-pointer [text-shadow:0_0_1px_rgba(255,255,255,0.6)]">
+                      <Link href="/dashboard/billing" className="text-white focus:text-white focus:bg-zinc-900 cursor-pointer [text-shadow:0_0_1px_rgba(255,255,255,0.6)]">
                         <CreditCard className="mr-2 h-4 w-4" />
                         Billing
                       </Link>
@@ -292,7 +292,7 @@ export function Header() {
                   <a href="/dashboard/settings" className={isScrolled ? "text-black" : "text-foreground"}>
                     Settings
                   </a>
-                  <a href="/dashboard/settings" className={isScrolled ? "text-black" : "text-foreground"}>
+                  <a href="/dashboard/billing" className={isScrolled ? "text-black" : "text-foreground"}>
                     Billing
                   </a>
                   <button

@@ -26,7 +26,7 @@ export const RemotionRoot: React.FC = () => {
   return (
     <>
       {/* 30 Second Video - TikTok/Reels optimized */}
-      <Composition<any, VideoProps>
+      <Composition<unknown, VideoProps>
         id="StrebVideo30"
         component={VideoComposition}
         durationInFrames={900} // 30 seconds at 30fps
@@ -40,7 +40,7 @@ export const RemotionRoot: React.FC = () => {
       />
 
       {/* 60 Second Video - Standard */}
-      <Composition<any, VideoProps>
+      <Composition<unknown, VideoProps>
         id="StrebVideo60"
         component={VideoComposition}
         durationInFrames={1800} // 60 seconds at 30fps
@@ -54,7 +54,7 @@ export const RemotionRoot: React.FC = () => {
       />
 
       {/* 90 Second Video - Extended */}
-      <Composition<any, VideoProps>
+      <Composition<unknown, VideoProps>
         id="StrebVideo90"
         component={VideoComposition}
         durationInFrames={2700} // 90 seconds at 30fps
@@ -68,7 +68,7 @@ export const RemotionRoot: React.FC = () => {
       />
 
       {/* Square Video - Instagram Feed */}
-      <Composition<any, VideoProps>
+      <Composition<unknown, VideoProps>
         id="StrebVideoSquare"
         component={VideoComposition}
         durationInFrames={1800}

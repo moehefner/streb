@@ -1,9 +1,10 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import Stripe from 'stripe';
-import { stripe, STRIPE_PLANS } from '@/lib/stripe';
+import { stripe, STRIPE_PLANS, PLAN_LIMITS } from '@/lib/stripe';
 import { prisma } from '@/lib/prisma';
 import { updatePlanLimits } from '@/lib/db-helpers';
+import { supabaseAdmin } from '@/lib/supabase';
 
 /**
  * Stripe Webhook Handler
@@ -19,6 +20,63 @@ import { updatePlanLimits } from '@/lib/db-helpers';
 
 // Disable body parsing for webhook signature verification
 export const runtime = 'nodejs';
+type ManagedPlan = keyof typeof PLAN_LIMITS;
+
+function resolvePlanFromPriceId(priceId?: string | null): ManagedPlan | null {
+  if (!priceId) return null;
+  if (priceId === STRIPE_PLANS.starter.priceId) return 'starter';
+  if (priceId === STRIPE_PLANS.pro.priceId) return 'pro';
+  if (priceId === STRIPE_PLANS.agency.priceId) return 'agency';
+  return null;
+}
+
+function normalizePlan(plan?: string | null): ManagedPlan | null {
+  if (!plan) return null;
+  const value = plan.toLowerCase();
+  if (value === 'free' || value === 'starter' || value === 'pro' || value === 'agency') {
+    return value;
+  }
+  return null;
+}
+
+async function syncSupabasePlan(
+  userId: string,
+  plan: ManagedPlan,
+  options?: {
+    stripeCustomerId?: string | null;
+    stripeSubscriptionId?: string | null;
+    subscriptionStatus?: string | null;
+  }
+) {
+  const limits = PLAN_LIMITS[plan];
+  const updatePayload: Record<string, unknown> = {
+    plan_type: plan,
+    campaigns_limit: limits.campaigns,
+    posts_limit: limits.posts,
+    videos_limit: limits.videos,
+    emails_limit: limits.emails,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (options?.stripeCustomerId !== undefined) {
+    updatePayload.stripe_customer_id = options.stripeCustomerId;
+  }
+  if (options?.stripeSubscriptionId !== undefined) {
+    updatePayload.stripe_subscription_id = options.stripeSubscriptionId;
+  }
+  if (options?.subscriptionStatus !== undefined) {
+    updatePayload.subscription_status = options.subscriptionStatus;
+  }
+
+  const { error } = await supabaseAdmin
+    .from('users')
+    .update(updatePayload as never)
+    .eq('id', userId);
+
+  if (error) {
+    console.error('Failed to sync Supabase plan limits from Stripe webhook:', error);
+  }
+}
 
 export async function POST(request: Request) {
   const body = await request.text();
@@ -93,8 +151,8 @@ export async function POST(request: Request) {
  * Handle successful checkout session
  */
 async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
-  const userId = session.metadata?.userId;
-  const plan = session.metadata?.plan as keyof typeof STRIPE_PLANS;
+  const userId = session.client_reference_id || session.metadata?.userId;
+  const plan = normalizePlan(session.metadata?.plan);
 
   if (!userId || !plan) {
     console.error('Missing metadata in checkout session:', session.id);
@@ -103,8 +161,10 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
 
   console.log(`Checkout completed for user ${userId}, plan: ${plan}`);
 
-  // Update will happen when subscription.created event fires
-  // This is just for logging/tracking
+  await syncSupabasePlan(userId, plan, {
+    stripeCustomerId: typeof session.customer === 'string' ? session.customer : null,
+    stripeSubscriptionId: typeof session.subscription === 'string' ? session.subscription : null,
+  });
 }
 
 /**
@@ -112,14 +172,16 @@ async function handleCheckoutCompleted(session: Stripe.Checkout.Session) {
  */
 async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
   const userId = subscription.metadata?.userId;
-  const plan = subscription.metadata?.plan as keyof typeof STRIPE_PLANS;
+  const metadataPlan = normalizePlan(subscription.metadata?.plan);
+  const inferredPlan = resolvePlanFromPriceId(subscription.items.data[0]?.price?.id);
+  const plan = metadataPlan || inferredPlan;
 
   if (!userId || !plan) {
     console.error('Missing metadata in subscription:', subscription.id);
     return;
   }
 
-  const planLimits = STRIPE_PLANS[plan]?.limits;
+  const planLimits = PLAN_LIMITS[plan];
 
   if (!planLimits) {
     console.error('Invalid plan in subscription:', plan);
@@ -145,6 +207,12 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
       },
     });
 
+    await syncSupabasePlan(userId, plan, {
+      stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : null,
+      stripeSubscriptionId: subscription.id,
+      subscriptionStatus: subscription.status,
+    });
+
     console.log(`Subscription created for user ${userId}: ${plan}`);
   } catch (error) {
     console.error('Error updating user subscription:', error);
@@ -157,7 +225,7 @@ async function handleSubscriptionCreated(subscription: Stripe.Subscription) {
  */
 async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
   const userId = subscription.metadata?.userId;
-  const plan = subscription.metadata?.plan as keyof typeof STRIPE_PLANS;
+  const plan = normalizePlan(subscription.metadata?.plan);
 
   if (!userId) {
     console.error('Missing userId in subscription metadata:', subscription.id);
@@ -185,16 +253,10 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
     let planType = plan;
     if (!planType && subscription.items.data.length > 0) {
       const priceId = subscription.items.data[0].price.id;
-      // Find plan by price ID
-      for (const [key, value] of Object.entries(STRIPE_PLANS)) {
-        if (value.priceId === priceId) {
-          planType = key as keyof typeof STRIPE_PLANS;
-          break;
-        }
-      }
+      planType = resolvePlanFromPriceId(priceId);
     }
 
-    const planLimits = planType ? STRIPE_PLANS[planType]?.limits : null;
+    const planLimits = planType ? PLAN_LIMITS[planType] : null;
 
     // Update user subscription status
     const periodEnd = (subscription as unknown as Record<string, unknown>).current_period_end as number | undefined;
@@ -220,6 +282,14 @@ async function handleSubscriptionUpdated(subscription: Stripe.Subscription) {
       where: { id: user.id },
       data: updateData,
     });
+
+    if (planType) {
+      await syncSupabasePlan(user.id, planType, {
+        stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : null,
+        stripeSubscriptionId: subscription.id,
+        subscriptionStatus: subscription.status,
+      });
+    }
 
     console.log(`Subscription updated for user ${user.id}: ${subscription.status}`);
   } catch (error) {
@@ -253,6 +323,11 @@ async function handleSubscriptionDeleted(subscription: Stripe.Subscription) {
 
     // Downgrade to free plan
     await updatePlanLimits(user.id, 'free');
+    await syncSupabasePlan(user.id, 'free', {
+      stripeCustomerId: typeof subscription.customer === 'string' ? subscription.customer : null,
+      stripeSubscriptionId: null,
+      subscriptionStatus: 'canceled',
+    });
 
     // Clear subscription data
     await prisma.user.update({

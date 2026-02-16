@@ -149,7 +149,7 @@ export const Scene: React.FC<SceneProps> = ({
       />
 
       {/* Scene Type Badge (top left) */}
-      {!isLastScene && (
+      {!isFirstScene && !isLastScene && (
         <div
           style={{
             position: 'absolute',

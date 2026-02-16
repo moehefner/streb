@@ -211,6 +211,13 @@ function getNextTier(currentPlan: string): string {
   return tiers[currentPlan as keyof typeof tiers] || "a higher plan"
 }
 
+function getNextPlanSlug(currentPlan: string): "starter" | "pro" | "agency" {
+  const normalized = (currentPlan || "free").toLowerCase()
+  if (normalized === "free") return "starter"
+  if (normalized === "starter") return "pro"
+  return "agency"
+}
+
 function normalizeConnectedPlatforms(raw: unknown): string[] {
   if (!Array.isArray(raw)) return []
   return raw
@@ -271,6 +278,7 @@ export default function AutoPilotPage() {
 
   useEffect(() => {
     checkOnboardingStatusAndLoad()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function checkOnboardingStatusAndLoad() {
@@ -525,7 +533,7 @@ export default function AutoPilotPage() {
       return (
         <div className="flex flex-wrap gap-3">
           <Button asChild className="bg-[#FF3D71] hover:bg-[#FF3D71]/90 text-white">
-            <Link href="/pricing">Upgrade Plan</Link>
+            <Link href={`/pricing?plan=${getNextPlanSlug(userLimits.planType)}`}>Upgrade Plan</Link>
           </Button>
           <Button
             onClick={() => setShowForm(true)}

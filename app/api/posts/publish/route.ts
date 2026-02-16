@@ -194,8 +194,16 @@ export async function POST(req: NextRequest) {
       status: 'posted',
       engagement: results
     }
-    const { error: postSaveError } = await (supabaseAdmin.from('posts') as any)
-      .insert(postRecord)
+
+    // NOTE: `lib/database.types.ts` is currently a placeholder, so the typed client can infer
+    // `never` for some table operations. Cast to a minimal safe shape.
+    const postsTable = (supabaseAdmin as unknown as {
+      from: (table: string) => {
+        insert: (values: Record<string, unknown>) => Promise<{ error: unknown | null }>
+      }
+    }).from('posts')
+
+    const { error: postSaveError } = await postsTable.insert(postRecord)
 
     if (postSaveError) {
       console.error('Failed to save post to database:', postSaveError)

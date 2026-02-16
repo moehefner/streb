@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { Pill } from "./pill";
 import { Button } from "./ui/button";
-import { useState } from "react";
 
 export function Hero() {
-  const [hovering, setHovering] = useState(false);
   return (
     <div className="flex flex-col h-svh justify-between bg-black">
       {/* Black background instead of 3D particles */}
@@ -25,8 +23,6 @@ export function Hero() {
         <Link className="contents max-sm:hidden" href="/sign-up">
           <Button
             className="mt-14 bg-white text-black hover:bg-white/90"
-            onMouseEnter={() => setHovering(true)}
-            onMouseLeave={() => setHovering(false)}
           >
             [Get Started]
           </Button>
@@ -35,8 +31,6 @@ export function Hero() {
           <Button
             size="sm"
             className="mt-14 bg-white text-black hover:bg-white/90"
-            onMouseEnter={() => setHovering(true)}
-            onMouseLeave={() => setHovering(false)}
           >
             [Get Started]
           </Button>

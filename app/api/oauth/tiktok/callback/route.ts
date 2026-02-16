@@ -122,13 +122,11 @@ export async function GET(req: NextRequest) {
     )
 
     let username = 'tiktok_user'
-    let displayName = 'TikTok User'
 
     if (userInfoResponse.ok) {
       const userInfo = await userInfoResponse.json() as TikTokUserInfo
       if (userInfo.data?.user) {
         username = userInfo.data.user.username || userInfo.data.user.display_name || 'tiktok_user'
-        displayName = userInfo.data.user.display_name || username
       }
     }
 
@@ -150,9 +148,18 @@ export async function GET(req: NextRequest) {
     const expiresAt = new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
 
     // 8. Upsert connected account
-    const { error: upsertError } = await supabaseAdmin
-      .from('connected_accounts')
-      .upsert({
+    // NOTE: `lib/database.types.ts` is currently a placeholder, so the typed client
+    // can infer `never` for some table operations. Cast to a minimal safe shape.
+    const connectedAccounts = (supabaseAdmin as unknown as {
+      from: (table: string) => {
+        upsert: (
+          values: Record<string, unknown>,
+          options: { onConflict?: string }
+        ) => Promise<{ error: unknown | null }>
+      }
+    }).from('connected_accounts')
+
+    const { error: upsertError } = await connectedAccounts.upsert({
         user_id: userData.id,
         platform: 'tiktok',
         account_username: username,
@@ -162,7 +169,7 @@ export async function GET(req: NextRequest) {
         token_expires_at: expiresAt,
         is_active: true,
         connected_at: new Date().toISOString()
-      } as any, {
+      }, {
         onConflict: 'user_id,platform'
       })
 

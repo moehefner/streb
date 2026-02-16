@@ -1,33 +1,32 @@
 "use client"
 
 import { useState } from "react"
-import { Plus, Minus, HelpCircle } from "lucide-react"
+import { Plus, Minus } from "lucide-react"
 
 const faqs = [
   {
-    question: "How quickly can I set up Streb for my SaaS?",
-    answer: "You can have Streb fully configured and running your first automated campaigns within 5 minutes. Simply connect your accounts, add your app details, and activate AutoPilot mode."
+    question: "How is this different from Buffer or Hootsuite?",
+    answer:
+      "Buffer and Hootsuite require you to manually create content and schedule posts. Streb uses AI to generate posts, create videos, and find leads automatically. Set it once, and it runs forever.",
   },
   {
     question: "Do I need technical skills to use Streb?",
-    answer: "Not at all! Streb is designed for non-technical founders and marketers. Our AI handles all the complex automation, content generation, and optimization automatically."
+    answer:
+      "No. The entire setup takes about 10 minutes. Connect your social accounts, tell us about your app, and Streb handles the rest.",
   },
   {
-    question: "What platforms does Streb integrate with?",
-    answer: "Streb integrates with Product Hunt, Twitter, Reddit, Hacker News, LinkedIn, YouTube, email providers, and many more. We're constantly adding new integrations based on user requests."
+    question: "What platforms do you support?",
+    answer:
+      "We support Twitter/X, LinkedIn, Instagram, Facebook, TikTok, YouTube Shorts, and Threads. More platforms are being added regularly.",
   },
   {
-    question: "How does the AI content generation work?",
-    answer: "Our AI analyzes your app, target audience, and platform requirements to generate personalized content for each channel. It creates posts, videos, emails, and more that match your brand voice and convert well."
+    question: "Can I cancel anytime?",
+    answer: "Yes. You can cancel anytime from your billing page with no lock-in.",
   },
   {
-    question: "Can I customize the automated campaigns?",
-    answer: "Absolutely! While AutoPilot mode handles everything automatically, you can customize templates, approval workflows, posting schedules, and targeting parameters to match your specific needs."
+    question: "Do you offer refunds?",
+    answer: "Yes. If you're not satisfied within the first 14 days, we offer a full refund.",
   },
-  {
-    question: "What kind of results can I expect?",
-    answer: "Our users typically see 3x more signups, 40%+ email open rates, and successful Product Hunt launches. Results vary by industry and execution, but most see significant growth within the first month."
-  }
 ]
 
 export function FAQSection() {
@@ -38,12 +37,12 @@ export function FAQSection() {
   }
 
   return (
-    <section className="py-24 px-6">
-      <div className="max-w-4xl mx-auto">
+    <section className="py-24 px-6 bg-gray-50 dark:bg-[#101010]">
+      <div className="max-w-3xl mx-auto">
         <div className="text-center mb-16">
           <h2 className="font-sans text-5xl font-normal mb-6 text-balance">Frequently asked questions</h2>
           <p className="text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-            Everything you need to know about Streb and how it can transform your SaaS marketing.
+            Everything you need to know before launching with Streb.
           </p>
         </div>
 

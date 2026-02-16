@@ -180,7 +180,7 @@ CRITICAL: Return ONLY valid JSON. No markdown, no code blocks, no explanation. J
     console.log('Claude response length:', responseText.length)
 
     // 11. Clean response (remove markdown code blocks if present)
-    let cleanedResponse = responseText
+    const cleanedResponse = responseText
       .replace(/```json\n?/g, '')
       .replace(/```\n?/g, '')
       .trim()

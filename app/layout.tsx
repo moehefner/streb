@@ -1,8 +1,9 @@
 import type React from "react"
 import type { Metadata } from "next"
-import { Inter, Geist_Mono, Playfair_Display } from "next/font/google"
+import { Inter } from "next/font/google"
 import { Analytics } from "@vercel/analytics/next"
 import { ClerkProvider } from '@clerk/nextjs'
+import { ErrorBoundary } from '@/components/error-boundary'
 import "./globals.css"
 
 const inter = Inter({ 
@@ -10,8 +11,6 @@ const inter = Inter({
   variable: "--font-inter",
   weight: ["400", "500", "600", "700", "800"]
 })
-const _geistMono = Geist_Mono({ subsets: ["latin"] })
-const _playfair = Playfair_Display({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
   title: "Streb - Marketing Automation Platform",
@@ -31,7 +30,7 @@ export default function RootLayout({
     >
       <html lang="en">
         <body className={`${inter.variable} font-sans antialiased`}>
-          {children}
+          <ErrorBoundary>{children}</ErrorBoundary>
           <Analytics />
         </body>
       </html>

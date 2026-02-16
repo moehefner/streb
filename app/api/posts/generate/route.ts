@@ -173,7 +173,7 @@ CRITICAL: Return ONLY the JSON object. No other text before or after.`
     console.log('Claude response:', responseText)
 
     // Remove markdown code blocks if present
-    let cleanedResponse = responseText
+    const cleanedResponse = responseText
       .replace(/```json\n/g, '')
       .replace(/```\n/g, '')
       .replace(/```/g, '')

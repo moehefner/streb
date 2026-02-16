@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useUsage } from "@/hooks/use-usage";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -92,6 +93,11 @@ type CampaignStatus = {
   nextAction?: string | null;
 };
 
+type ActiveCampaignConfig = {
+  outreachSenderEmail: string;
+  outreachSenderVerified: boolean;
+};
+
 const DEFAULT_STATS: DashboardStats = {
   postsUsed: 0,
   postsLimit: 0,
@@ -126,6 +132,13 @@ const percentageUsed = (used: number, limit: number) =>
 const formatPlanLabel = (plan: string) =>
   plan.charAt(0).toUpperCase() + plan.slice(1);
 
+const getNextPlanSlug = (plan: string): "starter" | "pro" | "agency" => {
+  const normalized = (plan || "free").toLowerCase()
+  if (normalized === "free") return "starter"
+  if (normalized === "starter") return "pro"
+  return "agency"
+}
+
 const formatActivityTime = (timestamp: string) => {
   const parsed = new Date(timestamp);
   if (Number.isNaN(parsed.getTime())) {
@@ -146,14 +159,34 @@ const SkeletonCard = () => (
 
 export function DashboardOverview({ userName }: DashboardOverviewProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const { usage } = useUsage();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [campaigns, setCampaigns] = useState<CampaignSummary[]>([]);
   const [selectedCampaignId, setSelectedCampaignId] = useState<string | null>(null);
+  const [activeCampaign, setActiveCampaign] = useState<ActiveCampaignConfig | null>(null);
   const [activities, setActivities] = useState<CampaignActivity[]>([]);
   const [activityLoading, setActivityLoading] = useState(false);
   const [campaignStatus, setCampaignStatus] = useState<CampaignStatus | null>(null);
+  const [showVerificationBanner, setShowVerificationBanner] = useState(false);
+  const [senderEmail, setSenderEmail] = useState("");
+  const [isResendingVerification, setIsResendingVerification] = useState(false);
+  const [toastState, setToastState] = useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const verifyStatus = searchParams.get("verify");
+
+  const toast = useMemo(
+    () => ({
+      success: (message: string) => setToastState({ type: "success", message }),
+      error: (message: string) => setToastState({ type: "error", message }),
+    }),
+    []
+  );
 
   const fetchStats = useCallback(async () => {
     setIsLoading(true);
@@ -291,6 +324,44 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
     }
   }, []);
 
+  const fetchActiveCampaign = useCallback(async (campaignId: string) => {
+    try {
+      const response = await fetch(
+        `/api/autopilot/config?campaign_id=${encodeURIComponent(campaignId)}`,
+        { cache: "no-store" }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to load campaign config");
+      }
+
+      const payload = (await response.json()) as {
+        success?: boolean;
+        config?: {
+          outreachSenderEmail?: string;
+          outreachSenderVerified?: boolean;
+        } | null;
+      };
+
+      if (!payload.success) {
+        throw new Error("Failed to load campaign config");
+      }
+
+      const config = payload.config;
+      setActiveCampaign(
+        config
+          ? {
+              outreachSenderEmail: config.outreachSenderEmail || "",
+              outreachSenderVerified: Boolean(config.outreachSenderVerified),
+            }
+          : null
+      );
+    } catch (err) {
+      console.error("Error fetching campaign config", err);
+      setActiveCampaign(null);
+    }
+  }, []);
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
@@ -303,12 +374,14 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
     if (!selectedCampaignId) {
       setActivities([]);
       setCampaignStatus(null);
+      setActiveCampaign(null);
       return;
     }
 
     fetchCampaignActivity(selectedCampaignId);
     fetchCampaignStatus(selectedCampaignId);
-  }, [fetchCampaignActivity, fetchCampaignStatus, selectedCampaignId]);
+    fetchActiveCampaign(selectedCampaignId);
+  }, [fetchActiveCampaign, fetchCampaignActivity, fetchCampaignStatus, selectedCampaignId]);
 
   useEffect(() => {
     const syncCampaignSelection = () => {
@@ -331,79 +404,119 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
     };
   }, [selectedCampaignId]);
 
+  useEffect(() => {
+    if (activeCampaign?.outreachSenderEmail && !activeCampaign?.outreachSenderVerified) {
+      setShowVerificationBanner(true);
+      setSenderEmail(activeCampaign.outreachSenderEmail);
+      return;
+    }
+
+    setShowVerificationBanner(false);
+    setSenderEmail("");
+  }, [activeCampaign]);
+
+  useEffect(() => {
+    if (!verifyStatus) {
+      return;
+    }
+
+    if (verifyStatus === "success") {
+      toast.success("Email verified! Outreach will start on next cycle.");
+      setShowVerificationBanner(false);
+      setActiveCampaign((previous) =>
+        previous
+          ? {
+              ...previous,
+              outreachSenderVerified: true,
+            }
+          : previous
+      );
+    } else if (verifyStatus === "expired") {
+      toast.error("Verification link expired. Please request a new one.");
+    } else if (verifyStatus === "invalid" || verifyStatus === "error") {
+      toast.error("Verification failed. Please contact support.");
+    }
+
+    router.replace(pathname);
+  }, [pathname, router, toast, verifyStatus]);
+
+  useEffect(() => {
+    if (!toastState) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setToastState(null), 4000);
+    return () => window.clearTimeout(timeout);
+  }, [toastState]);
+
   const resolvedStats = stats ?? DEFAULT_STATS;
-  const planType = (resolvedStats.planType || "free").toLowerCase();
+  const postsUsed = usage?.posts.used ?? resolvedStats.postsUsed;
+  const postsLimit = usage?.posts.limit ?? resolvedStats.postsLimit;
+  const videosUsed = usage?.videos.used ?? resolvedStats.videosUsed;
+  const videosLimit = usage?.videos.limit ?? resolvedStats.videosLimit;
+  const emailsUsed = usage?.outreach.used ?? resolvedStats.emailsUsed;
+  const emailsLimit = usage?.outreach.limit ?? resolvedStats.emailsLimit;
+  const planType = (usage?.plan || resolvedStats.planType || "free").toLowerCase();
   const planLabel = formatPlanLabel(planType);
   const planPrice = PLAN_PRICE[planType] ?? PLAN_PRICE.free;
   const selectedCampaignName =
     campaigns.find((campaign) => campaign.id === selectedCampaignId)?.name ||
     "No campaign selected";
+  const nextPlanSlug = getNextPlanSlug(planType)
 
-  const postsData = useMemo(
-    () => buildUsageData(resolvedStats.postsUsed, resolvedStats.postsLimit),
-    [resolvedStats.postsUsed, resolvedStats.postsLimit]
-  );
-  const videosData = useMemo(
-    () => buildUsageData(resolvedStats.videosUsed, resolvedStats.videosLimit),
-    [resolvedStats.videosUsed, resolvedStats.videosLimit]
-  );
-  const outreachData = useMemo(
-    () => buildUsageData(resolvedStats.emailsUsed, resolvedStats.emailsLimit),
-    [resolvedStats.emailsUsed, resolvedStats.emailsLimit]
-  );
+  const postsData = useMemo(() => buildUsageData(postsUsed, postsLimit), [postsUsed, postsLimit]);
+  const videosData = useMemo(() => buildUsageData(videosUsed, videosLimit), [videosUsed, videosLimit]);
+  const outreachData = useMemo(() => buildUsageData(emailsUsed, emailsLimit), [emailsUsed, emailsLimit]);
 
-  const postsPct = percentageUsed(
-    resolvedStats.postsUsed,
-    resolvedStats.postsLimit
-  );
-  const videosPct = percentageUsed(
-    resolvedStats.videosUsed,
-    resolvedStats.videosLimit
-  );
-  const emailsPct = percentageUsed(
-    resolvedStats.emailsUsed,
-    resolvedStats.emailsLimit
-  );
+  const postsPct = usage?.posts.percentage ?? percentageUsed(postsUsed, postsLimit);
+  const videosPct = usage?.videos.percentage ?? percentageUsed(videosUsed, videosLimit);
+  const emailsPct = usage?.outreach.percentage ?? percentageUsed(emailsUsed, emailsLimit);
 
   const usageWarnings = useMemo(() => {
     const limits = [
       {
         key: "posts",
         label: "posts",
-        used: resolvedStats.postsUsed,
-        limit: resolvedStats.postsLimit,
+        used: postsUsed,
+        limit: postsLimit,
+        percentage: postsPct,
       },
       {
         key: "videos",
         label: "videos",
-        used: resolvedStats.videosUsed,
-        limit: resolvedStats.videosLimit,
+        used: videosUsed,
+        limit: videosLimit,
+        percentage: videosPct,
       },
       {
         key: "emails",
         label: "emails",
-        used: resolvedStats.emailsUsed,
-        limit: resolvedStats.emailsLimit,
+        used: emailsUsed,
+        limit: emailsLimit,
+        percentage: emailsPct,
       },
     ];
 
     return limits
       .filter(
-        (item) => item.limit > 0 && item.used / item.limit >= usageThreshold
+        (item) => item.limit > 0 && item.percentage / 100 >= usageThreshold
       )
       .map((item) => ({
         id: item.key,
-        message: `⚠️ You've used ${Math.round(
-          (item.used / item.limit) * 100
+        message: `Warning: You've used ${Math.round(
+          item.percentage
         )}% of your ${item.label}`,
       }));
   }, [
-    resolvedStats.postsUsed,
-    resolvedStats.postsLimit,
-    resolvedStats.videosUsed,
-    resolvedStats.videosLimit,
-    resolvedStats.emailsUsed,
-    resolvedStats.emailsLimit,
+    postsUsed,
+    postsLimit,
+    videosUsed,
+    videosLimit,
+    emailsUsed,
+    emailsLimit,
+    postsPct,
+    videosPct,
+    emailsPct,
   ]);
 
   const autopilotStatus = campaignStatus?.limitsReached
@@ -454,6 +567,16 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
 
   return (
     <div className="space-y-8 font-semibold">
+      {toastState && (
+        <div
+          className={`fixed right-4 top-4 z-50 rounded-lg px-4 py-3 text-sm text-white shadow-lg ${
+            toastState.type === "success" ? "bg-emerald-600" : "bg-red-600"
+          }`}
+        >
+          {toastState.message}
+        </div>
+      )}
+
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className={`text-3xl font-bold ${glossyWhite}`}>
@@ -515,14 +638,44 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
         </div>
       )}
 
+      {usage?.needsUpgrade && (
+        <div className="mb-6 rounded-lg bg-gradient-to-r from-orange-500 to-red-500 p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">You&apos;re running low on credits!</h3>
+              <p className="text-sm opacity-90">
+                {usage.posts.used}/{usage.posts.limit} posts used this month
+              </p>
+            </div>
+            <Link href="/pricing?plan=pro">
+              <Button variant="secondary">Upgrade Now</Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
+      {usage && usage.posts.used >= usage.posts.limit && (
+        <div className="mb-6 rounded-lg bg-red-500 p-4 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Monthly limit reached!</h3>
+              <p className="text-sm opacity-90">
+                AutoPilot is paused until next billing cycle or upgrade.
+              </p>
+            </div>
+            <Link href="/pricing">
+              <Button variant="secondary">Upgrade Plan</Button>
+            </Link>
+          </div>
+        </div>
+      )}
+
       {planType === "free" && (
         <div className="rounded-2xl border border-amber-500/40 bg-[#1F1503] p-4 text-sm text-amber-100">
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <p className="font-medium">
-              ⚡ Upgrade to Starter for 100 posts/month and unlock higher limits.
-            </p>
+            <p className="font-medium">{"\u26A1"} Upgrade to Starter for 100 posts/month and unlock higher limits.</p>
             <Button asChild size="sm" className="bg-amber-400 text-black hover:bg-amber-300">
-              <Link href="/pricing">Upgrade Now</Link>
+              <Link href={`/pricing?plan=${nextPlanSlug}`}>Upgrade Now</Link>
             </Button>
           </div>
         </div>
@@ -541,20 +694,78 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                 size="sm"
                 className="bg-yellow-400 text-black hover:bg-yellow-300"
               >
-                <Link href="/pricing">Upgrade</Link>
+                <Link href={`/pricing?plan=${nextPlanSlug}`}>Upgrade</Link>
               </Button>
             </div>
           ))}
         </div>
       )}
 
+      {showVerificationBanner && (
+        <div className="mb-6 rounded-lg border border-orange-300 bg-orange-50 p-4 dark:bg-orange-950">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <h3 className="font-semibold text-orange-900 dark:text-orange-100">
+                Verify your sender email
+              </h3>
+              <p className="text-sm text-orange-700 dark:text-orange-300">
+                We sent a verification email to <strong>{senderEmail}</strong>. Outreach won&apos;t
+                start until verified.
+              </p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                if (!selectedCampaignId) {
+                  toast.error("No campaign selected.")
+                  return
+                }
+
+                if (isResendingVerification) {
+                  return
+                }
+
+                setIsResendingVerification(true)
+
+                try {
+                  const res = await fetch("/api/resend-verification", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ campaignId: selectedCampaignId }),
+                  })
+
+                  if (res.ok) {
+                    toast.success("Verification email sent!")
+                  } else {
+                    const data = (await res.json().catch(() => ({}))) as { error?: string }
+                    toast.error(data.error || "Failed to send")
+                  }
+                } catch {
+                  toast.error("Failed to send")
+                } finally {
+                  setIsResendingVerification(false)
+                }
+              }}
+              disabled={isResendingVerification}
+            >
+              {isResendingVerification ? "Sending..." : "Resend Email"}
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Top row: 4 metric cards */}
       <div className="grid gap-4 md:grid-cols-4">
-        <Card className="border-[#404040] bg-[#2A2A2A]">
+        <Card
+          className={`border-[#404040] ${
+            postsPct >= 80 ? "bg-[#3A2B1A]" : "bg-[#2A2A2A]"
+          }`}
+        >
           <CardContent className="pt-6 text-center">
             <div className="flex flex-col items-center justify-center gap-2">
               <div className={iconWrap}>
-                <span className="text-lg">📊</span>
+                <span className="text-lg">{"\u{1F4CA}"}</span>
               </div>
               <p className={`text-base ${glossyWhite}`}>Total Content</p>
               <p className={`text-3xl font-bold ${glossyWhite}`}>
@@ -569,7 +780,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
           <CardContent className="pt-6 text-center">
             <div className="flex flex-col items-center justify-center gap-2">
               <div className={iconWrap}>
-                <span className="text-lg">👥</span>
+                <span className="text-lg">{"\u{1F465}"}</span>
               </div>
               <p className={`text-base ${glossyWhite}`}>Total Reach</p>
               <p className={`text-3xl font-bold ${glossyWhite}`}>
@@ -586,7 +797,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
           <CardContent className="pt-6 text-center">
             <div className="flex flex-col items-center justify-center gap-2">
               <div className={iconWrap}>
-                <span className="text-lg">🤖</span>
+                <span className="text-lg">{"\u{1F916}"}</span>
               </div>
               <p className={`text-base ${glossyWhite}`}>AutoPilot</p>
               <p className={`text-3xl font-bold ${glossyWhite}`}>
@@ -601,7 +812,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
           <CardContent className="pt-6 text-center">
             <div className="flex flex-col items-center justify-center gap-2">
               <div className={iconWrap}>
-                <span className="text-lg">⚡</span>
+                <span className="text-lg">{"\u26A1"}</span>
               </div>
               <p className={`text-base ${glossyWhite}`}>Current Plan</p>
               <p className={`text-3xl font-bold ${glossyWhite}`}>
@@ -610,7 +821,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
               <p className={`text-sm ${glossyWhite}`}>{planPrice}</p>
               {planType !== "agency" && (
                 <Button asChild size="sm" className="mt-2">
-                  <Link href="/pricing">Upgrade</Link>
+                  <Link href={`/pricing?plan=${nextPlanSlug}`}>Upgrade</Link>
                 </Button>
               )}
             </div>
@@ -652,7 +863,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                 </ResponsiveContainer>
               </div>
               <div className={`text-4xl font-bold ${glossyWhite}`}>
-                {resolvedStats.postsUsed} / {resolvedStats.postsLimit}
+                {postsUsed} / {postsLimit}
               </div>
               <p className={`text-sm ${glossyWhite}`}>
                 {postsPct}% used this month
@@ -664,7 +875,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                     style={{ backgroundColor: PIE_THEME.posts.used }}
                   />
                   <span className={glossyWhite}>
-                    Used: {resolvedStats.postsUsed}
+                    Used: {postsUsed}
                   </span>
                 </div>
                 <div className="flex items-center">
@@ -676,16 +887,25 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                     Remaining:{" "}
                     {Math.max(
                       0,
-                      resolvedStats.postsLimit - resolvedStats.postsUsed
+                      postsLimit - postsUsed
                     )}
                   </span>
                 </div>
               </div>
+              {postsPct >= 80 && (
+                <p className="mt-2 text-xs text-orange-300">
+                  {"\u26A0\uFE0F"} Running low - consider upgrading
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-[#404040] bg-[#2A2A2A]">
+        <Card
+          className={`border-[#404040] ${
+            videosPct >= 80 ? "bg-[#3A2B1A]" : "bg-[#2A2A2A]"
+          }`}
+        >
           <CardHeader className="pb-2 text-center">
             <div className="mx-auto mb-2 flex justify-center">
               <div
@@ -717,7 +937,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                 </ResponsiveContainer>
               </div>
               <div className={`text-4xl font-bold ${glossyWhite}`}>
-                {resolvedStats.videosUsed} / {resolvedStats.videosLimit}
+                {videosUsed} / {videosLimit}
               </div>
               <p className={`text-sm ${glossyWhite}`}>
                 {videosPct}% used this month
@@ -729,7 +949,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                     style={{ backgroundColor: PIE_THEME.videos.used }}
                   />
                   <span className={glossyWhite}>
-                    Used: {resolvedStats.videosUsed}
+                    Used: {videosUsed}
                   </span>
                 </div>
                 <div className="flex items-center">
@@ -741,16 +961,25 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                     Remaining:{" "}
                     {Math.max(
                       0,
-                      resolvedStats.videosLimit - resolvedStats.videosUsed
+                      videosLimit - videosUsed
                     )}
                   </span>
                 </div>
               </div>
+              {videosPct >= 80 && (
+                <p className="mt-2 text-xs text-orange-300">
+                  {"\u26A0\uFE0F"} Running low - consider upgrading
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
 
-        <Card className="border-[#404040] bg-[#2A2A2A]">
+        <Card
+          className={`border-[#404040] ${
+            emailsPct >= 80 ? "bg-[#3A2B1A]" : "bg-[#2A2A2A]"
+          }`}
+        >
           <CardHeader className="pb-2 text-center">
             <div className="mx-auto mb-2 flex justify-center">
               <div
@@ -782,7 +1011,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                 </ResponsiveContainer>
               </div>
               <div className={`text-4xl font-bold ${glossyWhite}`}>
-                {resolvedStats.emailsUsed} / {resolvedStats.emailsLimit}
+                {emailsUsed} / {emailsLimit}
               </div>
               <p className={`text-sm ${glossyWhite}`}>
                 {emailsPct}% used this month
@@ -794,7 +1023,7 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                     style={{ backgroundColor: PIE_THEME.outreach.used }}
                   />
                   <span className={glossyWhite}>
-                    Used: {resolvedStats.emailsUsed}
+                    Used: {emailsUsed}
                   </span>
                 </div>
                 <div className="flex items-center">
@@ -806,11 +1035,16 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
                     Remaining:{" "}
                     {Math.max(
                       0,
-                      resolvedStats.emailsLimit - resolvedStats.emailsUsed
+                      emailsLimit - emailsUsed
                     )}
                   </span>
                 </div>
               </div>
+              {emailsPct >= 80 && (
+                <p className="mt-2 text-xs text-orange-300">
+                  {"\u26A0\uFE0F"} Running low - consider upgrading
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -982,3 +1216,4 @@ export function DashboardOverview({ userName }: DashboardOverviewProps) {
     </div>
   );
 }
+

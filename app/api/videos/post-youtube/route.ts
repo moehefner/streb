@@ -130,9 +130,16 @@ export async function POST(req: NextRequest) {
             : new Date(Date.now() + 3600 * 1000).toISOString()
 
           // Update token in database
-          await (supabaseAdmin
-            .from('connected_accounts') as any)
-            .update({
+          // NOTE: `lib/database.types.ts` is currently a placeholder, so the typed client can infer
+          // `never` for some table operations. Cast to a minimal safe shape.
+          type EqChain = { eq: (column: string, value: unknown) => EqChain }
+          const connectedAccounts = (supabaseAdmin as unknown as {
+            from: (table: string) => {
+              update: (values: Record<string, unknown>) => EqChain
+            }
+          }).from('connected_accounts')
+
+          await connectedAccounts.update({
               access_token: accessToken,
               token_expires_at: newExpiresAt,
               refresh_token: credentials.refresh_token || accountData.refresh_token
@@ -239,8 +246,16 @@ export async function POST(req: NextRequest) {
     const finalUrl = isShort ? shortsUrl : watchUrl
 
     // 13. Update last_used_at for the connected account
-    await (supabaseAdmin
-      .from('connected_accounts') as any)
+    // NOTE: `lib/database.types.ts` is currently a placeholder, so the typed client can infer
+    // `never` for some table operations. Cast to a minimal safe shape.
+    type EqChain = { eq: (column: string, value: unknown) => EqChain }
+    const connectedAccounts = (supabaseAdmin as unknown as {
+      from: (table: string) => {
+        update: (values: Record<string, unknown>) => EqChain
+      }
+    }).from('connected_accounts')
+
+    await connectedAccounts
       .update({ last_used_at: new Date().toISOString() })
       .eq('user_id', userData.id)
       .eq('platform', 'youtube')

@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { cn } from '@/lib/utils'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Label } from '@/components/ui/label'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   ArrowLeft,
   ArrowRight,
@@ -55,12 +55,8 @@ interface OnboardingData {
   videoType: string
   videoLength: number
   videoInstructions: string
+  outreachSenderEmail: string
   outreachKeywords: string
-  outreachChannels: {
-    twitter: boolean
-    reddit: boolean
-  }
-  minFollowers: number
   maxResultsPerDay: number
   postFrequency: number
   videoFrequency: number
@@ -95,12 +91,8 @@ const DEFAULT_STATE: OnboardingData = {
   videoType: 'demo',
   videoLength: 60,
   videoInstructions: '',
+  outreachSenderEmail: '',
   outreachKeywords: '',
-  outreachChannels: {
-    twitter: true,
-    reddit: true
-  },
-  minFollowers: 100,
   maxResultsPerDay: 25,
   postFrequency: 6,
   videoFrequency: 48,
@@ -289,8 +281,8 @@ export default function OnboardingPage() {
     await generateSamples()
   }
 
-  function validateScreen(screen: number): boolean {
-    switch (screen) {
+  function validateScreen(): boolean {
+    switch (currentScreen) {
       case 1:
         if (data.connectedPlatforms.length === 0) {
           setError('Please connect at least one platform')
@@ -298,16 +290,8 @@ export default function OnboardingPage() {
         }
         return true
       case 2:
-        if (!data.appName.trim()) {
-          setError('App name is required')
-          return false
-        }
-        if (!data.appDescription.trim() || data.appDescription.trim().length < 100) {
-          setError('App description must be at least 100 characters')
-          return false
-        }
-        if (!data.targetAudience.trim()) {
-          setError('Target audience is required')
+        if (!data.appName.trim() || !data.appDescription.trim()) {
+          setError('Please fill in all required fields')
           return false
         }
         return true
@@ -322,12 +306,16 @@ export default function OnboardingPage() {
         }
         return true
       case 4:
-        if (!data.outreachKeywords.trim()) {
-          setError('Please add at least one target keyword for outreach')
+        if (!data.outreachSenderEmail.trim()) {
+          setError('Please enter an email address for outreach')
           return false
         }
-        if (!data.outreachChannels.twitter && !data.outreachChannels.reddit) {
-          setError('Please select at least one outreach channel')
+        if (!data.outreachSenderEmail.includes('@')) {
+          setError('Please enter a valid email address')
+          return false
+        }
+        if (!data.outreachKeywords.trim()) {
+          setError('Please add at least one target keyword for outreach')
           return false
         }
         return true
@@ -336,9 +324,20 @@ export default function OnboardingPage() {
     }
   }
 
+  function canSkipCurrentScreen(): boolean {
+    return currentScreen === 3 || currentScreen === 4
+  }
+
+  function handleSkipForNow() {
+    setError('')
+    if (currentScreen < 5) {
+      setCurrentScreen((prev) => prev + 1)
+    }
+  }
+
   function handleNext() {
     setError('')
-    if (!validateScreen(currentScreen)) {
+    if (!validateScreen()) {
       return
     }
 
@@ -375,6 +374,16 @@ export default function OnboardingPage() {
   }
 
   async function handleSubmit() {
+    if (!data.outreachSenderEmail.trim()) {
+      setError('Please enter an email address for outreach')
+      return
+    }
+
+    if (!data.outreachSenderEmail.includes('@')) {
+      setError('Please enter a valid email address')
+      return
+    }
+
     setIsSubmitting(true)
     setError('')
 
@@ -402,38 +411,29 @@ export default function OnboardingPage() {
         videoType: data.videoType,
         videoLength: data.videoLength,
         videoInstructions: data.videoInstructions,
+        outreach_sender_email: data.outreachSenderEmail,
+        outreach_sender_verified: false,
+        outreach_keywords: data.outreachKeywords
+          .split('\n')
+          .map((keyword) => keyword.trim())
+          .filter(Boolean),
         outreachKeywords: data.outreachKeywords,
-        outreachChannels: data.outreachChannels,
-        minFollowers: data.minFollowers,
         maxResultsPerDay: data.maxResultsPerDay,
         platforms: platformMap,
         outreachPlatforms: {
-          twitterDm: data.outreachChannels.twitter,
-          linkedinMessage: data.connectedPlatforms.includes('linkedin'),
           email: true
         }
       }
 
-      const primaryAttempt = await submitConfig('/api/autopilot/start', payload)
-      const primaryData =
-        primaryAttempt.parsed && typeof primaryAttempt.parsed === 'object'
-          ? (primaryAttempt.parsed as Record<string, unknown>)
+      const response = await submitConfig('/api/autopilot/config', payload)
+      const responseData =
+        response.parsed && typeof response.parsed === 'object'
+          ? (response.parsed as Record<string, unknown>)
           : {}
 
-      if (!primaryAttempt.response.ok || primaryData.success !== true) {
-        const fallbackAttempt = await submitConfig('/api/autopilot/config', payload)
-        const fallbackData =
-          fallbackAttempt.parsed && typeof fallbackAttempt.parsed === 'object'
-            ? (fallbackAttempt.parsed as Record<string, unknown>)
-            : {}
-
-        if (!fallbackAttempt.response.ok || fallbackData.success !== true) {
-          const message =
-            (fallbackData.error as string) ||
-            (primaryData.error as string) ||
-            'Failed to activate AutoPilot'
-          throw new Error(message)
-        }
+      if (!response.response.ok || responseData.success !== true) {
+        const message = (responseData.error as string) || 'Failed to create campaign'
+        throw new Error(message)
       }
 
       router.push('/dashboard?onboarding=complete')
@@ -500,31 +500,32 @@ export default function OnboardingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0A0A0A] p-8">
-      <div className="w-full max-w-3xl">
-        {/* Progress Bar */}
-        <div className="mb-8">
-          <div className="mb-4 flex items-center justify-between">
-            {[1, 2, 3, 4, 5].map((step) => (
-              <div
-                key={step}
-                className={`flex h-10 w-10 items-center justify-center rounded-full border-2 ${
-                  step <= currentScreen
-                    ? 'border-[#FF3D71] bg-[#FF3D71] text-white'
-                    : 'border-[#404040] bg-[#141414] text-gray-500'
-                }`}
-              >
-                {step < currentScreen ? <Check className="h-5 w-5" /> : <span>{step}</span>}
-              </div>
-            ))}
-          </div>
-          <div className="h-2 rounded-full bg-[#141414]">
+      <div className="fixed left-1/2 top-4 z-50 -translate-x-1/2">
+        <div className="flex gap-2">
+          {[1, 2, 3, 4, 5].map((i) => (
             <div
-              className="h-2 rounded-full bg-[#FF3D71] transition-all duration-300"
-              style={{ width: `${(currentScreen / 5) * 100}%` }}
+              key={i}
+              className={cn(
+                'h-2 w-12 rounded-full transition-colors',
+                i <= currentScreen ? 'bg-purple-500' : 'bg-gray-200'
+              )}
             />
+          ))}
+        </div>
+        <p className="mt-2 text-center text-sm text-gray-300">Step {currentScreen} of 5</p>
+      </div>
+
+      {isGeneratingSamples && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="rounded-lg bg-white p-8 text-center">
+            <Loader2 className="mx-auto h-12 w-12 animate-spin text-purple-500" />
+            <p className="mt-4 font-semibold text-black">Generating your samples...</p>
+            <p className="text-sm text-gray-600">This takes about 30 seconds</p>
           </div>
         </div>
+      )}
 
+      <div className="w-full max-w-3xl">
         {/* Content */}
         <Card className="border-[#404040] bg-[#141414]">
           <CardHeader>
@@ -689,6 +690,7 @@ export default function OnboardingPage() {
                         <div className="rounded-lg border border-[#404040] bg-[#1A1A1A] p-4">
                           <p className="mb-3 whitespace-pre-wrap text-white">{data.samplePost.text}</p>
                           {data.samplePost.imageUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
                             <img
                               src={data.samplePost.imageUrl}
                               alt="Sample post image"
@@ -709,6 +711,7 @@ export default function OnboardingPage() {
                           Sample Video Preview
                         </h3>
                         <div className="rounded-lg border border-[#404040] bg-[#1A1A1A] p-4">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img src={data.sampleVideoUrl} alt="Video preview" className="w-full rounded-lg" />
                           <p className="mt-3 text-sm text-gray-500">
                             Video platforms: TikTok, YouTube Shorts
@@ -878,8 +881,39 @@ export default function OnboardingPage() {
 
                   <div className="space-y-4">
                     <div>
-                      <Label className="text-white">Target Keywords (one per line) *</Label>
+                      <Label className="text-white">Email Outreach Setup</Label>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="outreachSenderEmail" className="text-white">
+                        Send emails from <span className="text-red-500">*</span>
+                      </Label>
+                      <Input
+                        id="outreachSenderEmail"
+                        type="email"
+                        placeholder="you@yourcompany.com"
+                        value={data.outreachSenderEmail}
+                        onChange={(e) =>
+                          setData((prev) => ({
+                            ...prev,
+                            outreachSenderEmail: e.target.value
+                          }))
+                        }
+                        className="border-[#404040] bg-[#1A1A1A] text-white"
+                        required
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        We&apos;ll send a verification email. Outreach won&apos;t start until verified.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="outreachKeywords" className="text-white">
+                        What problems does your app solve? (keywords, one per line)
+                      </Label>
                       <Textarea
+                        id="outreachKeywords"
+                        rows={4}
                         value={data.outreachKeywords}
                         onChange={(e) =>
                           setData((prev) => ({
@@ -888,78 +922,10 @@ export default function OnboardingPage() {
                           }))
                         }
                         className="min-h-[100px] border-[#404040] bg-[#1A1A1A] text-white"
-                        placeholder={'looking for task manager\nneed productivity app\ntodo list recommendations'}
+                        placeholder={
+                          'struggling with marketing\nneed help promoting my app\nlooking for automation tool'
+                        }
                       />
-                    </div>
-
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={data.outreachChannels.twitter}
-                          onCheckedChange={(checked) =>
-                            setData((prev) => ({
-                              ...prev,
-                              outreachChannels: {
-                                ...prev.outreachChannels,
-                                twitter: Boolean(checked)
-                              }
-                            }))
-                          }
-                        />
-                        <Label className="text-white">Twitter DMs</Label>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <Checkbox
-                          checked={data.outreachChannels.reddit}
-                          onCheckedChange={(checked) =>
-                            setData((prev) => ({
-                              ...prev,
-                              outreachChannels: {
-                                ...prev.outreachChannels,
-                                reddit: Boolean(checked)
-                              }
-                            }))
-                          }
-                        />
-                        <Label className="text-white">Reddit Comments</Label>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                      <div>
-                        <Label className="text-white">Min Followers (Twitter)</Label>
-                        <Input
-                          type="number"
-                          value={data.minFollowers}
-                          onChange={(e) =>
-                            setData((prev) => ({
-                              ...prev,
-                              minFollowers: normalizePositiveNumber(e.target.value, prev.minFollowers, 0)
-                            }))
-                          }
-                          className="border-[#404040] bg-[#1A1A1A] text-white"
-                        />
-                      </div>
-
-                      <div>
-                        <Label className="text-white">Max Daily Outreach</Label>
-                        <Input
-                          type="number"
-                          value={data.maxResultsPerDay}
-                          onChange={(e) =>
-                            setData((prev) => ({
-                              ...prev,
-                              maxResultsPerDay: normalizePositiveNumber(
-                                e.target.value,
-                                prev.maxResultsPerDay,
-                                1
-                              )
-                            }))
-                          }
-                          className="border-[#404040] bg-[#1A1A1A] text-white"
-                        />
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1080,6 +1046,17 @@ export default function OnboardingPage() {
                 >
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
+                </Button>
+              )}
+
+              {canSkipCurrentScreen() && (
+                <Button
+                  variant="ghost"
+                  onClick={handleSkipForNow}
+                  className="ml-auto text-gray-300 hover:bg-transparent hover:text-white"
+                  disabled={isLoading}
+                >
+                  Skip for now →
                 </Button>
               )}
 

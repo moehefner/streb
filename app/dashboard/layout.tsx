@@ -37,6 +37,7 @@ export default function DashboardLayout({
   // Fetch campaigns on mount
   useEffect(() => {
     fetchCampaigns()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Restore persisted campaign selection

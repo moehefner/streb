@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
 
@@ -17,7 +17,7 @@ type UserLimitsRow = {
   plan_type: string | null
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET() {
   try {
     // 1. Authenticate
     const { userId } = await auth()

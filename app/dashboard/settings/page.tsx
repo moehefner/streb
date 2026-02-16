@@ -8,102 +8,108 @@ import { useSearchParams } from 'next/navigation'
 
 const glossyWhite = "text-white [text-shadow:0_0_1px_rgba(255,255,255,0.6)]"
 
+const DEFAULT_CONNECTED_ACCOUNTS: Record<string, { username?: string; connected: boolean }> = {
+  twitter: { connected: false },
+  reddit: { connected: false },
+  linkedin: { connected: false },
+  product_hunt: { connected: false },
+  facebook: { connected: false },
+  instagram: { connected: false },
+  threads: { connected: false },
+  github: { connected: false },
+  tiktok: { connected: false },
+  youtube: { connected: false }
+}
+
+function normalizePlatformKey(platform: string): keyof typeof DEFAULT_CONNECTED_ACCOUNTS | null {
+  const raw = platform.trim().toLowerCase()
+  const aliasMap: Record<string, keyof typeof DEFAULT_CONNECTED_ACCOUNTS> = {
+    producthunt: 'product_hunt',
+    'product-hunt': 'product_hunt',
+    youtube_shorts: 'youtube'
+  }
+
+  const normalized = aliasMap[raw] || (raw as keyof typeof DEFAULT_CONNECTED_ACCOUNTS)
+  return normalized in DEFAULT_CONNECTED_ACCOUNTS ? normalized : null
+}
+
 function SettingsContent() {
   const searchParams = useSearchParams()
   const [isConnecting, setIsConnecting] = useState(false)
-  const [connectedAccounts, setConnectedAccounts] = useState<Record<string, { username?: string; connected: boolean }>>({
-    twitter: { connected: false },
-    reddit: { connected: false },
-    linkedin: { connected: false },
-    product_hunt: { connected: false },
-    facebook: { connected: false },
-    instagram: { connected: false },
-    threads: { connected: false },
-    github: { connected: false },
-    tiktok: { connected: false },
-    youtube: { connected: false }
-  })
+  const [connectedAccounts, setConnectedAccounts] = useState<Record<string, { username?: string; connected: boolean }>>(
+    DEFAULT_CONNECTED_ACCOUNTS
+  )
+
+  async function fetchConnectedAccounts() {
+    try {
+      const response = await fetch('/api/user/connected-platforms', {
+        method: 'GET',
+        cache: 'no-store'
+      })
+      const data = await response.json()
+
+      if (!response.ok || !data?.success) {
+        console.error('Failed to fetch connected platforms:', data?.error || 'Unknown error')
+        return
+      }
+
+      const nextState: Record<string, { username?: string; connected: boolean }> = {
+        ...DEFAULT_CONNECTED_ACCOUNTS
+      }
+
+      const details = Array.isArray(data.details) ? data.details : []
+      const usernameByPlatform = new Map<string, string>()
+
+      for (const detail of details) {
+        if (!detail || typeof detail !== 'object') continue
+        const platform = typeof detail.platform === 'string' ? detail.platform : ''
+        const username = typeof detail.username === 'string' ? detail.username : ''
+        const key = normalizePlatformKey(platform)
+        if (key && username) {
+          usernameByPlatform.set(key, username)
+        }
+      }
+
+      const platforms = Array.isArray(data.platforms) ? data.platforms : []
+      for (const platform of platforms) {
+        if (typeof platform !== 'string') continue
+        const key = normalizePlatformKey(platform)
+        if (!key) continue
+        nextState[key] = {
+          connected: true,
+          username: usernameByPlatform.get(key)
+        }
+      }
+
+      setConnectedAccounts(nextState)
+    } catch (error) {
+      console.error('Failed to load connected accounts:', error)
+    }
+  }
 
   useEffect(() => {
-    // Check for connection status from URL params
+    // Check for connection status from URL params and hydrate from DB
     const connected = searchParams.get('connected')
     const error = searchParams.get('error')
-    
-    if (connected === 'twitter') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        twitter: { connected: true }
-      }))
-    }
-
-    if (connected === 'reddit') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        reddit: { connected: true }
-      }))
-    }
-
-    if (connected === 'linkedin') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        linkedin: { connected: true }
-      }))
-    }
-
-    if (connected === 'product_hunt') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        product_hunt: { connected: true }
-      }))
-    }
-
-    if (connected === 'facebook') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        facebook: { connected: true }
-      }))
-    }
-
-    if (connected === 'instagram') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        instagram: { connected: true }
-      }))
-    }
-
-    if (connected === 'threads') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        threads: { connected: true }
-      }))
-    }
-
-    if (connected === 'github') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        github: { connected: true }
-      }))
-    }
-
-    if (connected === 'tiktok') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        tiktok: { connected: true }
-      }))
-    }
-
-    if (connected === 'youtube') {
-      setConnectedAccounts(prev => ({
-        ...prev,
-        youtube: { connected: true }
-      }))
-    }
 
     if (error) {
       console.error('OAuth error:', error)
     }
-    
-    // TODO: Fetch connected accounts from API
+
+    if (connected) {
+      const key = normalizePlatformKey(connected)
+      if (key) {
+        setConnectedAccounts(prev => ({
+          ...prev,
+          [key]: {
+            ...prev[key],
+            connected: true
+          }
+        }))
+      }
+    }
+
+    void fetchConnectedAccounts()
   }, [searchParams])
 
   const handleConnectTwitter = async () => {

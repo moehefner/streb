@@ -96,7 +96,7 @@ export function NavUser() {
                 </a>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <a href="/dashboard/settings/billing">
+                <a href="/dashboard/billing">
                   <CreditCard />
                   Billing
                 </a>

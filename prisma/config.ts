@@ -5,10 +5,12 @@
  * This file is for reference and can be used if needed for advanced configuration
  */
 
-export default {
+const prismaConfig = {
   datasources: {
     db: {
       url: process.env.DATABASE_URL,
     },
   },
 };
+
+export default prismaConfig;

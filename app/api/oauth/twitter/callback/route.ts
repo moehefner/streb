@@ -137,9 +137,18 @@ export async function GET(req: NextRequest) {
     expiresAt.setSeconds(expiresAt.getSeconds() + (tokenData.expires_in || 7200))
     
     // Store in database
-    const { error: dbError } = await (supabaseAdmin
-      .from('connected_accounts') as any)
-      .upsert({
+    // NOTE: `lib/database.types.ts` is currently a placeholder, so the typed client
+    // can infer `never` for some table operations. Cast to a minimal safe shape.
+    const connectedAccounts = (supabaseAdmin as unknown as {
+      from: (table: string) => {
+        upsert: (
+          values: Record<string, unknown>,
+          options: { onConflict?: string }
+        ) => Promise<{ error: unknown | null }>
+      }
+    }).from('connected_accounts')
+
+    const { error: dbError } = await connectedAccounts.upsert({
         user_id: userId,
         platform: 'twitter',
         access_token: tokenData.access_token,

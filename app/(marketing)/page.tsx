@@ -19,6 +19,24 @@ export default function Home() {
       <FeaturesSection />
       <CTASection />
       <PricingSection />
+      <section className="py-12 px-6">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-1 gap-6 text-center sm:grid-cols-3">
+            <div>
+              <p className="text-2xl font-bold text-foreground">500+</p>
+              <p className="text-sm text-muted-foreground">Apps Launched</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">50K+</p>
+              <p className="text-sm text-muted-foreground">Posts Generated</p>
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-foreground">10K+</p>
+              <p className="text-sm text-muted-foreground">Videos Created</p>
+            </div>
+          </div>
+        </div>
+      </section>
       <TestimonialsSection />
       <FAQSection />
       <Footer />

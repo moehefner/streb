@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { createClient } from '@supabase/supabase-js'
+import crypto from 'crypto'
 
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -26,6 +27,8 @@ type AutoPilotConfigRow = {
   platforms: Record<string, boolean> | null
   outreach_platforms: Record<string, boolean> | null
   outreach_keywords: string | null
+  outreach_sender_email: string | null
+  outreach_sender_verified: boolean | null
   min_followers: number | null
   max_results_per_day: number | null
   is_active: boolean | null
@@ -56,6 +59,30 @@ function toPositiveInt(value: unknown, fallback: number, min = 0): number {
 
   const rounded = Math.floor(numeric)
   return rounded < min ? min : rounded
+}
+
+function toBoolean(value: unknown, fallback: boolean): boolean {
+  if (typeof value === 'boolean') {
+    return value
+  }
+
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true') return true
+    if (normalized === 'false') return false
+  }
+
+  return fallback
+}
+
+function generateVerificationToken(email: string, campaignId: string, userId: string): string {
+  const payload = `${email}|${campaignId}|${userId}|${Date.now()}`
+  const signature = crypto
+    .createHmac('sha256', process.env.VERIFICATION_SECRET || 'changeme')
+    .update(payload)
+    .digest('base64url')
+
+  return Buffer.from(`${payload}|${signature}`).toString('base64url')
 }
 
 async function getUserRow(clerkUserId: string): Promise<{ data: UserRow | null; error: unknown }> {
@@ -155,6 +182,8 @@ export async function GET(req: NextRequest) {
         platforms: config.platforms || {},
         outreachPlatforms: config.outreach_platforms || {},
         outreachKeywords: config.outreach_keywords || '',
+        outreachSenderEmail: config.outreach_sender_email || '',
+        outreachSenderVerified: config.outreach_sender_verified ?? false,
         minFollowers: config.min_followers ?? 100,
         maxResultsPerDay: config.max_results_per_day ?? 25,
         isActive: config.is_active ?? true,
@@ -192,8 +221,22 @@ export async function POST(req: NextRequest) {
     const keyFeatures = typeof body.keyFeatures === 'string' ? body.keyFeatures.trim() : ''
     const appUrl = typeof body.appUrl === 'string' ? body.appUrl.trim() : ''
     const githubRepoUrl = typeof body.githubRepoUrl === 'string' ? body.githubRepoUrl.trim() : ''
-    const outreachKeywords =
+    const hasOutreachSenderEmailField = typeof body.outreach_sender_email === 'string'
+    const hasOutreachSenderVerifiedField =
+      typeof body.outreach_sender_verified === 'boolean' || typeof body.outreach_sender_verified === 'string'
+    const outreachSenderEmail =
+      typeof body.outreach_sender_email === 'string' ? body.outreach_sender_email.trim() : ''
+    const outreachSenderVerified = toBoolean(body.outreach_sender_verified, false)
+    const outreachKeywordsArray = Array.isArray(body.outreach_keywords)
+      ? body.outreach_keywords.filter((value: unknown): value is string => typeof value === 'string')
+      : []
+    const outreachKeywordsFromArray = outreachKeywordsArray
+      .map((keyword: string) => keyword.trim())
+      .filter((keyword: string) => keyword.length > 0)
+      .join('\n')
+    const outreachKeywordsFromString =
       typeof body.outreachKeywords === 'string' ? body.outreachKeywords.trim() : ''
+    const outreachKeywords = outreachKeywordsFromArray || outreachKeywordsFromString
 
     const postFrequency = toPositiveInt(body.postFrequency, 6, 1)
     const videoFrequency = toPositiveInt(body.videoFrequency, 48, 1)
@@ -260,6 +303,20 @@ export async function POST(req: NextRequest) {
           platforms,
           outreach_platforms: outreachPlatforms,
           outreach_keywords: outreachKeywords || null,
+          ...(hasOutreachSenderEmailField
+            ? {
+                outreach_sender_email: outreachSenderEmail || null
+              }
+            : {}),
+          ...(hasOutreachSenderVerifiedField
+            ? {
+                outreach_sender_verified: outreachSenderVerified
+              }
+            : hasOutreachSenderEmailField
+              ? {
+                  outreach_sender_verified: false
+                }
+              : {}),
           min_followers: minFollowers,
           max_results_per_day: maxResultsPerDay,
           is_active: true,
@@ -270,8 +327,17 @@ export async function POST(req: NextRequest) {
           onConflict: 'user_id,campaign_name'
         }
       )
-      .select('id, campaign_name, is_active, is_paused')
-      .single<{ id: string; campaign_name: string | null; is_active: boolean; is_paused: boolean }>()
+      .select(
+        'id, campaign_name, is_active, is_paused, outreach_sender_email, outreach_sender_verified'
+      )
+      .single<{
+        id: string
+        campaign_name: string | null
+        is_active: boolean
+        is_paused: boolean
+        outreach_sender_email: string | null
+        outreach_sender_verified: boolean | null
+      }>()
 
     if (configError || !config) {
       console.error('Config save error:', configError)
@@ -286,6 +352,53 @@ export async function POST(req: NextRequest) {
 
     console.log('AutoPilot config saved for user:', userData.id)
 
+    // Send verification email for outreach sender
+    if (hasOutreachSenderEmailField && config.outreach_sender_email && !config.outreach_sender_verified) {
+      try {
+        const verificationToken = generateVerificationToken(
+          config.outreach_sender_email,
+          config.id,
+          userData.id
+        )
+
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL
+        if (!appUrl) {
+          throw new Error('NEXT_PUBLIC_APP_URL is not configured')
+        }
+
+        const resendApiKey = process.env.RESEND_API_KEY
+        if (!resendApiKey) {
+          throw new Error('RESEND_API_KEY is not configured')
+        }
+
+        const verifyUrl = `${appUrl}/api/verify-sender?token=${verificationToken}`
+
+        const response = await fetch('https://api.resend.com/emails', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${resendApiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            from: 'Streb <noreply@streb.ai>',
+            to: config.outreach_sender_email,
+            subject: 'Verify your outreach sender email',
+            text: `Click to verify your email for Streb outreach:\n\n${verifyUrl}\n\nThis link expires in 24 hours.`
+          })
+        })
+
+        if (!response.ok) {
+          const errorBody = await response.text()
+          throw new Error(`Resend error ${response.status}: ${errorBody}`)
+        }
+
+        console.log('[Onboarding] Verification email sent to:', config.outreach_sender_email)
+      } catch (err) {
+        console.error('[Onboarding] Failed to send verification email:', err)
+        // Don't block onboarding if verification email fails
+      }
+    }
+
     // 6. Return success
     return NextResponse.json({
       success: true,
@@ -294,7 +407,9 @@ export async function POST(req: NextRequest) {
         id: config.id,
         campaignName: config.campaign_name || resolvedCampaignName,
         isActive: config.is_active,
-        isPaused: config.is_paused
+        isPaused: config.is_paused,
+        outreachSenderEmail: config.outreach_sender_email || '',
+        outreachSenderVerified: config.outreach_sender_verified ?? false
       }
     })
   } catch (error) {

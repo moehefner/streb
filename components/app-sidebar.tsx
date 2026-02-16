@@ -8,8 +8,7 @@ import {
   Mail, 
   Bot, 
   BarChart3, 
-  Settings,
-  Plus
+  Settings
 } from "lucide-react"
 
 import { NavMain } from '@/components/nav-main'

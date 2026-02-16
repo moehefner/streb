@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 
 // YouTube OAuth 2.0 Configuration
@@ -12,7 +12,7 @@ const SCOPES = [
   'https://www.googleapis.com/auth/userinfo.profile'
 ].join(' ')
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     // 1. Authenticate user
     const { userId } = await auth()

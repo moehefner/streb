@@ -1,20 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth()
     if (!userId) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const clientId = process.env.LINKEDIN_CLIENT_ID
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL
+
+    if (!clientId || !appUrl) {
+      return NextResponse.json({ error: 'LinkedIn OAuth not configured' }, { status: 500 })
+    }
+
     // LinkedIn OAuth 2.0 authorization URL
-    const clientId = process.env.LINKEDIN_CLIENT_ID!
-    const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/oauth/linkedin/callback`
+    const redirectUri = `${appUrl}/api/oauth/linkedin/callback`
     const state = userId // Use userId as state for security
 
     // LinkedIn scopes (space-separated)
-    const scope = 'openid profile email w_member_social'
+    const scope = 'r_liteprofile w_member_social'
 
     // Build authorization URL
     const authUrl = new URL('https://www.linkedin.com/oauth/v2/authorization')

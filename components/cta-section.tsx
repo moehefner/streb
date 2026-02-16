@@ -1,4 +1,5 @@
-import { ArrowUpRight, ArrowRight, Play } from "lucide-react"
+import { ArrowUpRight, ArrowRight } from "lucide-react"
+import Image from "next/image"
 
 export function CTASection() {
   return (
@@ -16,10 +17,14 @@ export function CTASection() {
             <div className="absolute bottom-0 left-0 right-0 h-32 bg-gradient-to-t from-background to-transparent z-10 pointer-events-none" />
 
             {/* iPad hand image */}
-            <img
+            <Image
               src="/images/ipad-hand.png"
               alt="Hands holding iPad showing Streb dashboard"
+              width={1400}
+              height={900}
+              sizes="(max-width: 768px) 100vw, 896px"
               className="w-full h-auto"
+              priority
             />
           </div>
         </div>
@@ -39,7 +44,7 @@ export function CTASection() {
 
           <div className="flex flex-col items-center md:items-end gap-4">
             <p className="text-sm max-w-sm text-center md:text-right text-gray-300">
-              Join <em className="italic text-[#ADA996]">1,000+ indie hackers</em> who are growing faster with Streb's <em className="italic text-[#ADA996]">AI-powered</em> marketing automation platform.
+              Join <em className="italic text-[#ADA996]">1,000+ indie hackers</em> who are growing faster with Streb&apos;s <em className="italic text-[#ADA996]">AI-powered</em> marketing automation platform.
             </p>
             <a
               href="/sign-up"

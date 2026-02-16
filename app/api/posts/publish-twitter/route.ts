@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@clerk/nextjs/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { ensureValidTwitterAccessToken } from '@/lib/twitter-auth'
 
 export async function POST(req: NextRequest) {
   try {
@@ -89,24 +90,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // 6. Check if token is expired (and refresh if needed - simplified for now)
-    const tokenExpiresAt = accountData.token_expires_at
-      ? new Date(accountData.token_expires_at)
-      : null
-    const now = new Date()
-
-    if (tokenExpiresAt && tokenExpiresAt <= now) {
-      console.warn('Token expired, needs refresh')
-      return NextResponse.json(
-        {
-          success: false,
-          error: 'Twitter token expired. Please reconnect your Twitter account in Settings.'
-        },
-        { status: 401 }
-      )
-    }
-
-    const accessToken = accountData.access_token
+    // 6. Ensure token is valid (auto-refresh when near expiry)
+    const accessToken = await ensureValidTwitterAccessToken({
+      supabase: supabaseAdmin,
+      userId: dbUserId,
+      account: {
+        access_token: accountData.access_token,
+        refresh_token: accountData.refresh_token,
+        token_expires_at: accountData.token_expires_at
+      }
+    })
 
     // 7. Upload image to Twitter if provided
     let mediaId: string | undefined

@@ -1,4 +1,4 @@
-import { CreditCard, Wallet, PiggyBank, LineChart, Shield, Smartphone, Layers } from "lucide-react"
+import { CreditCard, Wallet, PiggyBank, LineChart, Shield, Smartphone } from "lucide-react"
 
 const services = [
   {
@@ -40,7 +40,7 @@ export function ServicesSection() {
         <div className="text-center mb-16">
           <h2 className="font-sans text-5xl font-bold mb-6 text-balance text-white text-adaptive">Everything you need to <em className="italic text-[#ADA996] text-adaptive">go viral</em></h2>
           <p className="text-gray-300 max-w-2xl mx-auto leading-relaxed">
-            Explore our comprehensive <em className="italic text-[#ADA996]">marketing automation</em> services, from content creation to customer outreach, all designed to accelerate your app's growth.
+            Explore our comprehensive <em className="italic text-[#ADA996]">marketing automation</em> services, from content creation to customer outreach, all designed to accelerate your app&apos;s growth.
           </p>
         </div>
 

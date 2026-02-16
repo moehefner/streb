@@ -1,152 +1,123 @@
 # Streb
 
-An all-in-one marketing automation platform for SaaS/app builders.
+AutoPilot marketing platform for app founders.
 
-## Tech Stack
+## Local Setup
 
-- **Next.js 14** (App Router) + TypeScript
-- **Supabase** (Postgres database)
-- **Clerk** (authentication)
-- **shadcn/ui** + Tailwind CSS (UI components)
-- **n8n** (automation workflows)
-- **Remotion** (video generation)
-- **Stripe** (payments)
-
-## Getting Started
-
-### 1. Install Dependencies
-
+1. Install dependencies:
 ```bash
 npm install
 ```
 
-### 2. Set Up Environment Variables
-
-Copy `.env.example` to `.env.local` and fill in your credentials:
-
+2. Create your local env file:
 ```bash
 cp .env.example .env.local
 ```
 
-Required environment variables:
-- **Supabase**: Create a project at [supabase.com](https://supabase.com)
-- **Clerk**: Create an application at [clerk.com](https://clerk.com)
-- **Stripe**: Get API keys from [stripe.com](https://stripe.com)
-- **n8n**: Self-host or use [n8n.cloud](https://n8n.cloud)
-- **Remotion**: Get license key from [remotion.dev](https://remotion.dev)
-
-### 3. Run the Development Server
-
+3. Run development server:
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see your application.
-
-## Project Structure
-
-```
-streb/
-├── app/
-│   ├── dashboard/          # Dashboard pages
-│   ├── api/                # API routes
-│   ├── auth/               # Authentication pages (sign-in, sign-up)
-│   ├── layout.tsx          # Root layout
-│   └── page.tsx            # Home page
-├── components/
-│   └── ui/                 # shadcn/ui components
-├── lib/
-│   ├── utils.ts            # Utility functions
-│   ├── supabase.ts         # Supabase client
-│   ├── stripe.ts           # Stripe client
-│   └── n8n.ts              # n8n API client
-├── .env.example            # Environment variables template
-└── package.json
-```
-
-## Available Routes
-
-- `/` - Landing page
-- `/dashboard` - Main dashboard (protected)
-- `/auth/sign-in` - Sign in page
-- `/auth/sign-up` - Sign up page
-- `/api/health` - Health check endpoint
-
-## Next Steps
-
-### 1. Install Additional Packages
-
-Install the packages for your integrations:
-
+4. Build test:
 ```bash
-# Supabase
-npm install @supabase/supabase-js
-
-# Clerk
-npm install @clerk/nextjs
-
-# Stripe
-npm install stripe @stripe/stripe-js
-
-# Additional UI dependencies
-npm install clsx tailwind-merge
+npm run build
 ```
 
-### 2. Configure Clerk
+## Required Environment Variables
 
-Add the Clerk provider to your root layout (`app/layout.tsx`):
+### Core
+- `NEXT_PUBLIC_APP_URL`
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+- `CLERK_SECRET_KEY`
+- `CLERK_WEBHOOK_SECRET`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-```tsx
-import { ClerkProvider } from '@clerk/nextjs'
-```
+### AutoPilot / Cron / n8n
+- `CRON_SECRET`
+- `N8N_WEBHOOK_URL`
+- `N8N_WEBHOOK_SECRET`
+- `N8N_API_URL` (if using n8n API integration)
+- `N8N_API_KEY` (if using n8n API integration)
 
-### 3. Set Up Supabase
+### AI
+- `ANTHROPIC_API_KEY`
+- `OPENAI_API_KEY`
 
-Create your database schema in Supabase and uncomment the client code in `lib/supabase.ts`.
+### Billing
+- `STRIPE_SECRET_KEY`
+- `STRIPE_PUBLISHABLE_KEY`
+- `STRIPE_WEBHOOK_SECRET`
+- `STRIPE_STARTER_MONTHLY_PRICE_ID` (or `STRIPE_STARTER_PRICE_ID`)
+- `STRIPE_PRO_MONTHLY_PRICE_ID` (or `STRIPE_PRO_PRICE_ID`)
+- `STRIPE_AGENCY_MONTHLY_PRICE_ID` (or `STRIPE_AGENCY_PRICE_ID`)
+- `STRIPE_STARTER_ANNUAL_PRICE_ID` (optional)
+- `STRIPE_PRO_ANNUAL_PRICE_ID` (optional)
+- `STRIPE_AGENCY_ANNUAL_PRICE_ID` (optional)
 
-### 4. Configure Stripe
+### OAuth Providers
+- `TWITTER_CLIENT_ID`
+- `TWITTER_CLIENT_SECRET`
+- `TWITTER_API_KEY`
+- `TWITTER_API_SECRET`
+- `TWITTER_BEARER_TOKEN` (only if using bearer-token based routes)
+- `LINKEDIN_CLIENT_ID`
+- `LINKEDIN_CLIENT_SECRET`
+- `META_APP_ID`
+- `META_APP_SECRET`
+- `TIKTOK_CLIENT_KEY`
+- `TIKTOK_CLIENT_SECRET`
+- `YOUTUBE_CLIENT_ID`
+- `YOUTUBE_CLIENT_SECRET`
+- `REDDIT_CLIENT_ID`
+- `REDDIT_CLIENT_SECRET`
+- `THREADS_CLIENT_ID`
+- `THREADS_CLIENT_SECRET`
+- `GITHUB_CLIENT_ID`
+- `GITHUB_CLIENT_SECRET`
+- `PRODUCT_HUNT_CLIENT_ID`
+- `PRODUCT_HUNT_CLIENT_SECRET`
+- `FACEBOOK_APP_ID`
+- `FACEBOOK_APP_SECRET`
+- `INSTAGRAM_CLIENT_ID`
+- `INSTAGRAM_CLIENT_SECRET`
 
-Uncomment the Stripe client in `lib/stripe.ts` and set up webhooks.
+### Outreach / Email
+- `RESEND_API_KEY`
+- `APOLLO_API_KEY` (if Apollo lead sourcing is enabled)
+- `OUTREACH_EMAIL_DELAY_MS` (optional)
+- `OUTREACH_SEND_INTERVAL_MS` (optional)
 
-### 5. Integrate n8n
+### Remotion / Rendering
+- `REMOTION_BUNDLER_MODULE` (optional override)
+- `REMOTION_RENDERER_MODULE` (optional override)
 
-Set up your n8n workflows and uncomment the client code in `lib/n8n.ts`.
+### Database / Prisma
+- `DATABASE_URL`
 
-### 6. Add shadcn/ui Components
+## Preflight Check (Before Deploy)
 
-Add components as needed:
-
+Run:
 ```bash
-npx shadcn@latest add button
-npx shadcn@latest add card
-npx shadcn@latest add dialog
-npx shadcn@latest add form
-npx shadcn@latest add input
-npx shadcn@latest add label
-npx shadcn@latest add table
+npx tsx scripts/preflight-check.ts
 ```
 
-## Development
+This validates:
+- core env vars
+- Supabase connectivity
+- key DB tables (`users`, `autopilot_configs`)
+- Stripe pricing IDs
 
-```bash
-npm run dev          # Start development server
-npm run build        # Build for production
-npm run start        # Start production server
-npm run lint         # Run ESLint
-```
+## Health Endpoint
 
-## Learn More
+- `GET /api/health`
+- Returns service status for:
+  - database
+  - stripe
+  - ai configuration
 
-- [Next.js Documentation](https://nextjs.org/docs)
-- [Supabase Documentation](https://supabase.com/docs)
-- [Clerk Documentation](https://clerk.com/docs)
-- [shadcn/ui Documentation](https://ui.shadcn.com)
-- [Tailwind CSS Documentation](https://tailwindcss.com/docs)
-- [n8n Documentation](https://docs.n8n.io)
-- [Remotion Documentation](https://www.remotion.dev/docs)
-- [Stripe Documentation](https://stripe.com/docs)
+## Deployment Checklist
 
-## License
-
-MIT
-"# streb" 
+Use `docs/DEPLOYMENT.md` before production deployment.

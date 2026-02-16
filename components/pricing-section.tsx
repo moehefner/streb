@@ -1,4 +1,5 @@
-import { Check, ArrowUpRight, ArrowRight, Tag } from "lucide-react"
+import { Check, ArrowUpRight, ArrowRight } from "lucide-react"
+import Link from "next/link"
 
 const plans = [
   {
@@ -14,6 +15,7 @@ const plans = [
       "Community support",
     ],
     cta: "Start Free",
+    href: "/sign-up",
     popular: false,
   },
   {
@@ -30,6 +32,7 @@ const plans = [
       "AutoPilot mode",
     ],
     cta: "Start Free Trial",
+    href: "/pricing?plan=starter",
     popular: true,
   },
   {
@@ -46,6 +49,7 @@ const plans = [
       "Dedicated support",
     ],
     cta: "Start Free Trial",
+    href: "/pricing?plan=pro",
     popular: false,
   },
 ]
@@ -100,8 +104,8 @@ export function PricingSection() {
                   ))}
                 </ul>
 
-                <a
-                  href="/sign-up"
+                <Link
+                  href={plan.href}
                   className={`relative flex items-center gap-0 border rounded-full pl-5 pr-1 py-1 transition-all duration-300 group/btn overflow-hidden mx-auto ${
                     plan.popular ? "border-foreground/50" : "border-border"
                   }`}
@@ -134,7 +138,7 @@ export function PricingSection() {
                       }`}
                     />
                   </span>
-                </a>
+                </Link>
               </div>
             </div>
           ))}

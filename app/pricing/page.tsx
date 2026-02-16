@@ -1,16 +1,36 @@
 'use client';
 
 import { useState } from 'react';
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
-import { STRIPE_PLANS, formatPrice } from '@/lib/stripe';
+import { STRIPE_PLANS, STRIPE_PRICES, StripeBillingInterval, formatPrice } from '@/lib/stripe';
+
+type PaidPlan = 'starter' | 'pro' | 'agency'
+
+function getPriceId(plan: PaidPlan, interval: StripeBillingInterval): string {
+  if (plan === 'starter') {
+    return interval === 'annual' ? STRIPE_PRICES.starter_annual : STRIPE_PRICES.starter_monthly
+  }
+  if (plan === 'pro') {
+    return interval === 'annual' ? STRIPE_PRICES.pro_annual : STRIPE_PRICES.pro_monthly
+  }
+  return interval === 'annual' ? STRIPE_PRICES.agency_annual : STRIPE_PRICES.agency_monthly
+}
 
 export default function PricingPage() {
   const router = useRouter();
   const { isSignedIn, isLoaded } = useUser();
+  const [requestedPlan, setRequestedPlan] = useState<string | null>(null)
   const [loading, setLoading] = useState<string | null>(null);
+  const [billingInterval, setBillingInterval] = useState<StripeBillingInterval>('monthly')
 
-  const handleSubscribe = async (plan: 'starter' | 'pro' | 'agency') => {
+  useEffect(() => {
+    const plan = new URLSearchParams(window.location.search).get('plan')
+    setRequestedPlan(plan ? plan.toLowerCase() : null)
+  }, [])
+
+  const handleSubscribe = async (plan: PaidPlan) => {
     if (!isSignedIn) {
       router.push('/sign-in?redirect_url=/pricing');
       return;
@@ -19,12 +39,16 @@ export default function PricingPage() {
     setLoading(plan);
 
     try {
-      const response = await fetch('/api/create-checkout', {
+      const response = await fetch('/api/stripe/create-checkout', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ plan }),
+        body: JSON.stringify({
+          plan,
+          interval: billingInterval,
+          priceId: getPriceId(plan, billingInterval),
+        }),
       });
 
       const data = await response.json();
@@ -73,6 +97,33 @@ export default function PricingPage() {
         </div>
 
         {/* Pricing Cards */}
+        <div className="flex justify-center mb-8">
+          <div className="inline-flex rounded-lg border border-gray-300 p-1 bg-white">
+            <button
+              type="button"
+              onClick={() => setBillingInterval('monthly')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
+                billingInterval === 'monthly'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setBillingInterval('annual')}
+              className={`px-4 py-2 text-sm font-medium rounded-md transition ${
+                billingInterval === 'annual'
+                  ? 'bg-gray-900 text-white'
+                  : 'text-gray-700 hover:bg-gray-100'
+              }`}
+            >
+              Annual
+            </button>
+          </div>
+        </div>
+
         <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
           {/* Free Plan */}
           <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-200">
@@ -121,7 +172,7 @@ export default function PricingPage() {
           </div>
 
           {/* Starter Plan */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-blue-500 relative">
+          <div className={`bg-white rounded-2xl shadow-lg p-8 border-2 relative ${requestedPlan === 'starter' ? 'border-blue-600' : 'border-blue-500'}`}>
             <div className="absolute top-0 right-0 bg-blue-500 text-white px-4 py-1 rounded-bl-lg rounded-tr-lg text-sm font-semibold">
               Popular
             </div>
@@ -130,7 +181,7 @@ export default function PricingPage() {
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Starter</h3>
               <div className="flex items-baseline mb-4">
                 <span className="text-5xl font-bold">{formatPrice(STRIPE_PLANS.starter.price)}</span>
-                <span className="text-gray-600 ml-2">/month</span>
+                <span className="text-gray-600 ml-2">{billingInterval === 'annual' ? '/year' : '/month'}</span>
               </div>
               <p className="text-gray-600">For growing businesses</p>
             </div>
@@ -156,12 +207,12 @@ export default function PricingPage() {
           </div>
 
           {/* Pro Plan */}
-          <div className="bg-white rounded-2xl shadow-lg p-8 border-2 border-gray-200">
+          <div className={`bg-white rounded-2xl shadow-lg p-8 border-2 ${requestedPlan === 'pro' ? 'border-gray-900' : 'border-gray-200'}`}>
             <div className="mb-8">
               <h3 className="text-2xl font-bold text-gray-900 mb-2">Pro</h3>
               <div className="flex items-baseline mb-4">
                 <span className="text-5xl font-bold">{formatPrice(STRIPE_PLANS.pro.price)}</span>
-                <span className="text-gray-600 ml-2">/month</span>
+                <span className="text-gray-600 ml-2">{billingInterval === 'annual' ? '/year' : '/month'}</span>
               </div>
               <p className="text-gray-600">For power users</p>
             </div>
@@ -189,13 +240,13 @@ export default function PricingPage() {
 
         {/* Agency Plan - Full Width */}
         <div className="max-w-6xl mx-auto mt-8">
-          <div className="bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-xl p-8 text-white">
+          <div className={`bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl shadow-xl p-8 text-white ${requestedPlan === 'agency' ? 'ring-4 ring-purple-300/40' : ''}`}>
             <div className="grid md:grid-cols-2 gap-8 items-center">
               <div>
                 <h3 className="text-3xl font-bold mb-4">Agency</h3>
                 <div className="flex items-baseline mb-4">
                   <span className="text-5xl font-bold">{formatPrice(STRIPE_PLANS.agency.price)}</span>
-                  <span className="text-purple-100 ml-2">/month</span>
+                  <span className="text-purple-100 ml-2">{billingInterval === 'annual' ? '/year' : '/month'}</span>
                 </div>
                 <p className="text-purple-100 mb-6">
                   For agencies managing multiple clients

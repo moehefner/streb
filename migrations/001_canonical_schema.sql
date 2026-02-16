@@ -1,0 +1,16 @@
+-- Canonical schema entrypoint for Streb (documentation + verification).
+--
+-- This file exists so `npm run verify-prod` can enforce that a canonical schema
+-- artifact is present in-repo before production deployment.
+--
+-- Source of truth: Supabase (SQL Editor migrations) + current application code.
+--
+-- Keep this file updated when you make schema changes that impact:
+-- - users
+-- - autopilot_configs
+-- - autopilot_activity
+-- - connected_accounts
+-- - outreach_leads
+--
+-- NOTE: This file is intentionally not auto-applied by the app at runtime.
+
